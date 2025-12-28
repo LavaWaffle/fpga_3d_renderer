@@ -11,7 +11,7 @@ module geometry_engine(
     simple_bram #(
         .DATA_WIDTH(32),
         .ADDR_WIDTH(10),
-        .INIT_FILE("")  // "vertex_data.mem"
+        .INIT_FILE("vertex_data.mem")  // "vertex_data.mem"
     ) vertex_ram (
         .clk    (i_clk),
         .we     (1'b0),
@@ -145,7 +145,6 @@ module geometry_engine(
                         if (w_out < 32'h00001999) begin 
                             // Invalid! Skip to next vertex immediately
                             state <= S_VERTEX_FETCH;
-//                            vertex_addr <= vertex_addr + 1;
                             // Note: You need logic to handle "partial" triangles later, 
                             // but for now we just drop bad vertices.
                         end else begin
@@ -173,7 +172,6 @@ module geometry_engine(
                     
                     // Done with this vertex. Go to next.
                     state <= S_VERTEX_FETCH;
-                    // vertex_addr <= vertex_addr + 1;
                 end
             endcase
         end
