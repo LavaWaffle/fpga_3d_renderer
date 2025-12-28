@@ -52,13 +52,17 @@ module fpga_top(
     triangle_assembler triangle_assembler_instance (
         .i_clk(clk),
         .i_rst(rst),
+
+        // FIFO Interface
         .i_fifo_data(rasterizer_data_in),
         .i_fifo_empty(rasterizer_fifo_empty),
         .o_fifo_read(rasterizer_read_enable),
         
+        // Assembler to Rasterizer Interface
         .o_tri_valid(triangle_assembler_data_valid),
         .i_raster_busy(rasterizer_busy),
         
+        // Triangle Outputs
         .o_x0(x0), .o_y0(y0), .o_z0(z0),
         .o_x1(x1), .o_y1(y1), .o_z1(z1),
         .o_x2(x2), .o_y2(y2), .o_z2(z2),
@@ -66,6 +70,41 @@ module fpga_top(
         .o_u0(u0), .o_v0(v0),
         .o_u1(u1), .o_v1(v1),
         .o_u2(u2), .o_v2(v2)
+    );
+
+    wire [16:0] rast_fb_addr; // 320x240 = 76,800 addrs (17 bits)
+    wire        rast_fb_we;   // Write Enable for Framebuffer
+    wire [11:0] rast_fb_pixel; // 12-bit Color 
+
+    
+
+    rasterizer rasterizer_instance (
+        .i_clk(clk),
+        .i_rst(rst),
+        
+        // Assembler Interface
+        .i_tri_valid(triangle_assembler_data_valid),
+        .o_busy(rasterizer_busy),
+        
+        // Triangle Inputs
+        .i_x0(x0), .i_y0(y0), .i_z0(z0),
+        .i_x1(x1), .i_y1(y1), .i_z1(z1),
+        .i_x2(x2), .i_y2(y2), .i_z2(z2),
+        
+        .i_u0(u0), .i_v0(v0),
+        .i_u1(u1), .i_v1(v1),
+        .i_u2(u2), .i_v2(v2),
+
+        // Framebuffer Interface
+        .o_fb_addr(rast_fb_addr),
+        .o_fb_we(rast_fb_we),
+        .o_fb_pixel(rast_fb_pixel),
+        
+        // Z-Buffer Interface
+        .o_zb_addr(o_zb_addr),
+        .i_zb_data(i_zb_data),
+        .o_zb_we(o_zb_we),
+        .o_zb_data(o_zb_data)
     );
 
     always_ff @(posedge clk) begin

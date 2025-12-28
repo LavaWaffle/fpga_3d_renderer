@@ -46,12 +46,14 @@ module rasterizer(
     reg signed [31:0] B01, B12, B20; // Steps for X
 
     // State Machine
-    localparam IDLE      = 0;
-    localparam SETUP_MATH = 1;
-    localparam SETUP_DIV  = 2;
-    localparam TRAVERSAL  = 3;
+    typedef enum {
+        IDLE,
+        SETUP_MATH,
+        SETUP_DIV,
+        TRAVERSAL
+    } rast_state_t;
     
-    reg [2:0] state;
+    rast_state_t state;
     
     // Divider Signals
     reg start_div;
@@ -61,7 +63,7 @@ module rasterizer(
 
     // Reuse one divider for calculating Area Reciprocal
     q16_16_div setup_div (
-        .i_clk(i_clk), .i_start(start_div), 
+        .i_clk(i_clk), .i_rst(i_rst), .i_start(start_div), 
         .i_dividend(div_num), .i_divisor(div_den),
         .o_quotient(div_res), .o_done(div_done)
     );
@@ -78,7 +80,7 @@ module rasterizer(
         max3 = (a > b) ? ((a > c) ? a : c) : ((b > c) ? b : c);
     endfunction
 
-    always @(posedge i_clk) begin
+    always_ff @(posedge i_clk) begin
         if (i_rst) begin
             state <= IDLE;
             o_busy <= 0;
