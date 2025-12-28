@@ -1,45 +1,57 @@
 `timescale 1ns / 1ps
 
-module geometry_engine(
-        input i_clk,
-        input i_rst
-    );
-    
-    reg  [9:0] vertex_addr;
+module geometry_engine (
+    input i_clk,
+    input i_rst,
+
+    // OUTPUTS TO FIFO
+    output reg        o_vertex_valid, 
+    output reg [31:0] o_x, o_y,
+    output reg [7:0]  o_z, 
+    output reg [31:0] o_u, o_v 
+);
+    // Vertex Memory (Simple BRAM)
+    reg  [9:0] vertex_addr_i;
     wire [31:0] vertex_data_i;
     
     simple_bram #(
         .DATA_WIDTH(32),
         .ADDR_WIDTH(10),
-        .INIT_FILE("vertex_data.mem")  // "vertex_data.mem"
+        .INIT_FILE("vertex_data.mem")  
     ) vertex_ram (
         .clk    (i_clk),
         .we     (1'b0),
-        .addr   (vertex_addr),
+        .addr   (vertex_addr_i),
         .wdata  (32'b0),
         .rdata  (vertex_data_i)
     );
 
-    localparam  S_VERTEX_FETCH = 0;
-    localparam  S_MATRIX_TRANSFORM = 1;
-    localparam  S_PERSP_DIVIDE = 2;
-    localparam  S_VIEWPORT_MAP = 3;
+    // Geometry Engine State Machine
+    typedef enum {
+        S_VERTEX_FETCH,
+        S_MATRIX_TRANSFORM,
+        S_PERSP_DIVIDE,
+        S_VIEWPORT_MAP
+    } geom_engine_state_t;
 
-    localparam NUM_STATES = 4;
-    
-    reg [$clog2(NUM_STATES)-1:0] state;
+    geom_engine_state_t state_i;
 
-    reg [31:0] x, y, z, u, v;
-    reg [2:0] vertex_count;
+    // Vertex Attributes (from RAM)
+    reg [31:0] x_local_i, y_local_i, z_local_i, u_local_i, v_local_i;
+    reg [2:0] vertex_count_i;
 
+    assign o_u = u_local_i;
+    assign o_v = v_local_i;
+
+    // Model-View-Projection Matrix 
     logic signed [31:0] MVP_MATRIX [0:15] = '{
-        32'h000087C3, 32'hFFFF783D, 32'h00000000, 32'h00000000,
-        32'h0000A1E8, 32'h0000A1E8, 32'hFFFF8D84, 32'h00000000,
-        32'hFFFFAEE3, 32'hFFFFAEE3, 32'hFFFF1A92, 32'h000B00A5,
-        32'hFFFFAF0C, 32'hFFFFAF0C, 32'hFFFF1B07, 32'h000B2E2A
+        32'h0000C000, 32'h00000000, 32'h00000000, 32'h00000000,
+        32'h00000000, 32'h0000E4F9, 32'hFFFF8D84, 32'h00000000,
+        32'h00000000, 32'hFFFF8177, 32'hFFFF02ED, 32'h000A4080, 
+        32'h00000000, 32'hFFFF8D84, 32'hFFFF1B07, 32'h000B2E2A 
     };
     
-    reg signed [31:0] x_out, y_out, z_out, w_out;
+    reg signed [31:0] x_clip_i, y_clip_i, z_clip_i, w_clip_i;
     
     function signed [31:0] mul_fix(input signed [31:0] a, input signed [31:0] b);
         logic signed [63:0] temp;
@@ -49,107 +61,125 @@ module geometry_engine(
         end
     endfunction
     
-    reg start_div;
-    wire signed [31:0] x_ndc, y_ndc;
-    wire div_x_done, div_y_done;
+    // Divider Instances for Perspective Divide
+    reg start_div_i;
+    wire signed [31:0] x_ndc_i, y_ndc_i, z_ndc_i;
+    wire div_x_done_i, div_y_done_i, div_z_done_i;
 
-    // Instantiate Divider for X
     q16_16_div div_x_inst (
         .i_clk(i_clk),
-        .i_start(start_div),
-        .i_dividend(x_out),
-        .i_divisor(w_out),
-        .o_quotient(x_ndc),
-        .o_done(div_x_done)
+        .i_rst(i_rst),
+        .i_start(start_div_i),
+        .i_dividend(x_clip_i),
+        .i_divisor(w_clip_i),
+        .o_quotient(x_ndc_i),
+        .o_done(div_x_done_i)
     );
 
-    // Instantiate Divider for Y
     q16_16_div div_y_inst (
         .i_clk(i_clk),
-        .i_start(start_div),
-        .i_dividend(y_out),
-        .i_divisor(w_out),
-        .o_quotient(y_ndc),
-        .o_done(div_y_done)
+        .i_rst(i_rst),
+        .i_start(start_div_i),
+        .i_dividend(y_clip_i),
+        .i_divisor(w_clip_i),
+        .o_quotient(y_ndc_i),
+        .o_done(div_y_done_i)
+    );
+
+    q16_16_div div_z_inst (
+        .i_clk(i_clk),
+        .i_rst(i_rst),
+        .i_start(start_div_i),
+        .i_dividend(z_clip_i),
+        .i_divisor(w_clip_i),
+        .o_quotient(z_ndc_i),
+        .o_done(div_z_done_i)
     );
     
-    reg [31:0] x_screen, y_screen;
+    // Screen Space Coordinates 
+    reg [31:0] x_screen, y_screen, z_screen;
+    assign o_x = x_screen;
+    assign o_y = y_screen;
+    assign o_z = z_screen[23:16]; // 8-bit depth
 
-    always @(posedge i_clk) begin
+    always_ff @(posedge i_clk) begin
         if (i_rst) begin
-            state <= S_VERTEX_FETCH;
-            vertex_addr <= 0;
-            vertex_count <= 0;
-            x <= 0;
-            y <= 0;
-            z <= 0;
-            u <= 0;
-            v <= 0;
+            state_i <= S_VERTEX_FETCH;
+            vertex_addr_i <= 0;
+            vertex_count_i <= 0;
+            o_vertex_valid <= 0;
+            x_local_i <= 0;
+            y_local_i <= 0;
+            z_local_i <= 0;
+            u_local_i <= 0;
+            v_local_i <= 0;
         end else begin
-            case (state)
+            // Default to invalid
+            o_vertex_valid <= 0;
+
+            case (state_i)
                 S_VERTEX_FETCH: begin
                     // Start at 1 to give clk cycle for RAM read
-                    if (vertex_count == 1) x <= vertex_data_i;
-                    else if (vertex_count == 2) y <= vertex_data_i;
-                    else if (vertex_count == 3) z <= vertex_data_i;
-                    else if (vertex_count == 4) u <= vertex_data_i;
-                    else if (vertex_count == 5) begin
-                        v <= vertex_data_i;
-                        vertex_count <= 0;
-                        state <= S_MATRIX_TRANSFORM;
+                    if (vertex_count_i == 1) x_local_i <= vertex_data_i;
+                    else if (vertex_count_i == 2) y_local_i <= vertex_data_i;
+                    else if (vertex_count_i == 3) z_local_i <= vertex_data_i;
+                    else if (vertex_count_i == 4) u_local_i <= vertex_data_i;
+                    else if (vertex_count_i == 5) begin
+                        v_local_i <= vertex_data_i;
+                        vertex_count_i <= 0;
+                        state_i <= S_MATRIX_TRANSFORM;
                     end
     
-                    // 2. Prepare address for the NEXT cycle
-                    // Only increment if we aren't done yet
-                    if (vertex_count != 5) begin
-                        vertex_addr <= vertex_addr + 1;
-                        vertex_count <= vertex_count + 1;
+                    // Handle Addressing
+                    if (vertex_count_i != 5) begin
+                        vertex_addr_i <= vertex_addr_i + 1;
+                        vertex_count_i <= vertex_count_i + 1;
                     end
                 end
                 S_MATRIX_TRANSFORM: begin
                     // Perform 4 Dot Products in Parallel
                     // Row 0 calculates new X
-                    x_out <= mul_fix(MVP_MATRIX[0], x) + 
-                             mul_fix(MVP_MATRIX[1], y) + 
-                             mul_fix(MVP_MATRIX[2], z) + 
+                    x_clip_i <= mul_fix(MVP_MATRIX[0], x_local_i) + 
+                             mul_fix(MVP_MATRIX[1], y_local_i) + 
+                             mul_fix(MVP_MATRIX[2], z_local_i) + 
                              mul_fix(MVP_MATRIX[3], 32'h00010000); // W=1.0
 
                     // Row 1 calculates new Y
-                    y_out <= mul_fix(MVP_MATRIX[4], x) + 
-                             mul_fix(MVP_MATRIX[5], y) + 
-                             mul_fix(MVP_MATRIX[6], z) + 
+                    y_clip_i <= mul_fix(MVP_MATRIX[4], x_local_i) + 
+                             mul_fix(MVP_MATRIX[5], y_local_i) + 
+                             mul_fix(MVP_MATRIX[6], z_local_i) + 
                              mul_fix(MVP_MATRIX[7], 32'h00010000);
 
                     // Row 2 calculates new Z
-                    z_out <= mul_fix(MVP_MATRIX[8], x) + 
-                             mul_fix(MVP_MATRIX[9], y) + 
-                             mul_fix(MVP_MATRIX[10], z) + 
+                    z_clip_i <= mul_fix(MVP_MATRIX[8], x_local_i) + 
+                             mul_fix(MVP_MATRIX[9], y_local_i) + 
+                             mul_fix(MVP_MATRIX[10], z_local_i) + 
                              mul_fix(MVP_MATRIX[11], 32'h00010000);
 
                     // Row 3 calculates new W (Crucial for perspective!)
-                    w_out <= mul_fix(MVP_MATRIX[12], x) + 
-                             mul_fix(MVP_MATRIX[13], y) + 
-                             mul_fix(MVP_MATRIX[14], z) + 
+                    w_clip_i <= mul_fix(MVP_MATRIX[12], x_local_i) + 
+                             mul_fix(MVP_MATRIX[13], y_local_i) + 
+                             mul_fix(MVP_MATRIX[14], z_local_i) + 
                              mul_fix(MVP_MATRIX[15], 32'h00010000);
 
-                    start_div <= 1; 
-                    state <= S_PERSP_DIVIDE;
+                    start_div_i <= 1; 
+                    state_i <= S_PERSP_DIVIDE;
                 end
                 S_PERSP_DIVIDE: begin
-                    start_div <= 0; // Clear start signal
+                    start_div_i <= 0; // Clear start signal
                     
                     // Wait for both dividers to finish (~34 cycles)
-                    if (div_x_done && div_y_done) begin
+                    if (div_x_done_i && div_y_done_i && div_z_done_i) begin
                         // Check Clipping (Simple Near Plane check)
                         // If W < Near_Plane (0.1 in fixed point ~ 6553), point is behind camera
-                        if (w_out < 32'h00001999) begin 
+                        if (w_clip_i < 32'h00001999) begin 
                             // Invalid! Skip to next vertex immediately
-                            state <= S_VERTEX_FETCH;
+                            state_i <= S_VERTEX_FETCH;
                             // Note: You need logic to handle "partial" triangles later, 
                             // but for now we just drop bad vertices.
                         end else begin
                             // Valid! Move to Viewport Map
-                            state <= S_VIEWPORT_MAP;
+                            state_i <= S_VIEWPORT_MAP;
                         end
                     end
                 end
@@ -161,17 +191,24 @@ module geometry_engine(
                     
                     // X Calculation: (x_ndc + 1.0) * 160
                     // 160 in Q16.16 = 32'h00A00000
-                    x_screen <= mul_fix(x_ndc + 32'h00010000, 32'h00A00000); 
+                    x_screen <= mul_fix(x_ndc_i + 32'h00010000, 32'h00A00000); 
 
                     // Y Calculation: (y_ndc + 1.0) * 120
                     // 120 in Q16.16 = 32'h00780000
-                    y_screen <= mul_fix(y_ndc + 32'h00010000, 32'h00780000);
-
+                    y_screen <= mul_fix(y_ndc_i + 32'h00010000, 32'h00780000);
+                    
                     // Note: 'x' and 'y' registers now hold Screen Coordinates in Q16.16 format.
                     // The integer part (x[31:16]) is the pixel location (0-319).
-                    
+
+                    // Logic: (z_ndc + 1.0) * 127.5
+                    // 127.5 in Q16.16 is 32'h007F8000
+                    z_screen <= mul_fix(z_ndc_i + 32'h00010000, 32'h007F8000);
+                    // [-1 to 1] maps to [0 to 255] for depth buffer
+
+                    // Output valid vertex
+                    o_vertex_valid <= 1;
                     // Done with this vertex. Go to next.
-                    state <= S_VERTEX_FETCH;
+                    state_i <= S_VERTEX_FETCH;
                 end
             endcase
         end

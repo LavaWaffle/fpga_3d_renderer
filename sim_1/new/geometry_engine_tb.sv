@@ -14,6 +14,8 @@ module geometry_engine_tb;
     geometry_engine dut (
         .i_clk(clk),
         .i_rst(rst)
+        // Note: Outputs (o_x, o_y, etc.) are internal wires we will snoop directly
+        // via the hierarchy in this testbench style.
     );
 
     // =========================================================================
@@ -79,51 +81,55 @@ module geometry_engine_tb;
             // -----------------------------------------------------------------
             // Wait for Fetch to complete and Transform to start.
             // At this point, registers x_local/y_local/etc should contain the fetched data.
-            wait(dut.state == dut.S_MATRIX_TRANSFORM);
+            wait(dut.state_i == dut.S_MATRIX_TRANSFORM);
             
             // NOTE: Ensure 'x_local', 'u', 'v' match the register names in your DUT
             $display("  [0] Input Data (Model Space - from RAM):");
-            $display("      X: %0.4f (Hex: %h)", fixed_to_real(dut.x), dut.x);
-            $display("      Y: %0.4f (Hex: %h)", fixed_to_real(dut.y), dut.y);
-            $display("      Z: %0.4f (Hex: %h)", fixed_to_real(dut.z), dut.z);
+            $display("      X: %0.4f (Hex: %h)", fixed_to_real(dut.x_local_i), dut.x_local_i);
+            $display("      Y: %0.4f (Hex: %h)", fixed_to_real(dut.y_local_i), dut.y_local_i);
+            $display("      Z: %0.4f (Hex: %h)", fixed_to_real(dut.z_local_i), dut.z_local_i);
             // Assuming U/V are just passed through registers
-            $display("      U: %0.4f (Hex: %h)", fixed_to_real(dut.u), dut.u);
-            $display("      V: %0.4f (Hex: %h)", fixed_to_real(dut.v), dut.v);
+            $display("      U: %0.4f (Hex: %h)", fixed_to_real(dut.u_local_i), dut.u_local_i);
+            $display("      V: %0.4f (Hex: %h)", fixed_to_real(dut.v_local_i), dut.v_local_i);
 
             // Wait for the transition out of Transform
             @(posedge clk); 
-            while (dut.state == dut.S_MATRIX_TRANSFORM) @(posedge clk);
+            while (dut.state_i == dut.S_MATRIX_TRANSFORM) @(posedge clk);
             
+
             // -----------------------------------------------------------------
             // B. Log CLIP SPACE (After Matrix Mult)
             // -----------------------------------------------------------------
             // Now in S_PERSP_DIVIDE, but regs hold Matrix result
             $display("  [1] Clip Space (Post-Matrix):");
-            $display("      X: %0.4f (Hex: %h)", fixed_to_real(dut.x_out), dut.x_out);
-            $display("      Y: %0.4f (Hex: %h)", fixed_to_real(dut.y_out), dut.y_out);
-            $display("      Z: %0.4f (Hex: %h)", fixed_to_real(dut.z_out), dut.z_out);
-            $display("      W: %0.4f (Hex: %h)", fixed_to_real(dut.w_out), dut.w_out);
+            $display("      X: %0.4f (Hex: %h)", fixed_to_real(dut.x_clip_i), dut.x_clip_i);
+            $display("      Y: %0.4f (Hex: %h)", fixed_to_real(dut.y_clip_i), dut.y_clip_i);
+            $display("      Z: %0.4f (Hex: %h)", fixed_to_real(dut.z_clip_i), dut.z_clip_i);
+            $display("      W: %0.4f (Hex: %h)", fixed_to_real(dut.w_clip_i), dut.w_clip_i);
 
             // -----------------------------------------------------------------
             // C. Log NDC (Normalized Device Coordinates)
             // -----------------------------------------------------------------
             // Wait for Division to finish
-            wait(dut.state == dut.S_VIEWPORT_MAP);
+            wait(dut.state_i == dut.S_VIEWPORT_MAP);
             
             $display("  [2] NDC (Perspective Divide):");
-            $display("      X: %0.4f", fixed_to_real(dut.x_ndc));
-            $display("      Y: %0.4f", fixed_to_real(dut.y_ndc));
+            $display("      X: %0.4f", fixed_to_real(dut.x_ndc_i));
+            $display("      Y: %0.4f", fixed_to_real(dut.y_ndc_i));
+            // New Z Logic Check
+            $display("      Z: %0.4f", fixed_to_real(dut.z_ndc_i));
 
             // -----------------------------------------------------------------
             // D. Log FINAL OUTPUT (Screen Space)
             // -----------------------------------------------------------------
             // Wait until state goes back to Fetch
-            wait(dut.state == dut.S_VERTEX_FETCH);
+            wait(dut.state_i == dut.S_VERTEX_FETCH);
             @(posedge clk); // Settle final assignment
 
             $display("  [3] FINAL OUTPUT (Screen Coords):");
-            $display("      x:%0.4f (Hex: %h)", fixed_to_real(dut.x_screen), dut.x_screen);
-            $display("      y:%0.4f (Hex: %h)", fixed_to_real(dut.y_screen), dut.y_screen);
+            $display("      x: %0.4f (Hex: %h)", fixed_to_real(dut.o_x), dut.o_x);
+            $display("      y: %0.4f (Hex: %h)", fixed_to_real(dut.o_y), dut.o_y);
+            $display("      z: %0d   (Hex: %h)", dut.o_z, dut.o_z); // Z is 8-bit int now
             
             // Small delay to separate outputs visually
             #10;
