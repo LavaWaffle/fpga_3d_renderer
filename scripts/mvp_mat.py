@@ -96,8 +96,8 @@ if __name__ == "__main__":
     # 1. SCREEN SETTINGS
     FOV_DEGREES  = 90.0
     ASPECT_RATIO = 320.0 / 240.0 # Match your hardware resolution!
-    NEAR_PLANE   = 0.1
-    FAR_PLANE    = 100.0
+    NEAR_PLANE   = 1.0
+    FAR_PLANE    = 20.0
 
     # 2. CAMERA SETTINGS
     CAM_POS    = [0.0, 5.0, 10.0]
@@ -106,8 +106,9 @@ if __name__ == "__main__":
 
     # 3. OBJECT SETTINGS
     OBJ_POS    = [0.0, 0.0, 0.0] # Centered
-    OBJ_SCALE  = [1.0, 1.0, 1.0]
-    OBJ_ROT    = [0.0, 0.0, np.radians(45)]
+    OBJ_SCALE  = [1.0, 1.0, 1.0] # No scaling
+    # OBJ_ROT    = [0.0, 0.0, np.radians(45)]
+    OBJ_ROT    = [0.0, 0.0, 0.0] # No rotation
 
     # CALCULATION
     model_mat = create_model_matrix(OBJ_POS, OBJ_SCALE, OBJ_ROT)

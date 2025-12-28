@@ -12,12 +12,20 @@ import numpy as np
 # ==============================================================================
 # We reconstruct the matrix columns from your SystemVerilog code
 # Note: Your code calculates dot products row by row.
+# mvp_matrix = np.array([
+# [  0.530,   -0.530,    0.000,    0.000],
+#  [   0.632,    0.632,   -0.447,   -0.000],
+#  [  -0.317,   -0.317,   -0.896,   11.003],
+#  [  -0.316,   -0.316,   -0.894,   11.180]], 
+#  dtype=np.float32)
+
+
 mvp_matrix = np.array([
-[  0.530,   -0.530,    0.000,    0.000],
- [   0.632,    0.632,   -0.447,   -0.000],
- [  -0.317,   -0.317,   -0.896,   11.003],
- [  -0.316,   -0.316,   -0.894,   11.180]], 
- dtype=np.float32)
+    [ 0.750,    0.000,    0.000,    0.000],
+    [ 0.000,    0.894,   -0.447,   -0.000],
+    [ 0.000,   -0.494,   -0.989,   10.252],
+    [ 0.000,   -0.447,   -0.894,   11.180]
+], dtype=np.float32)
 
 # Re-creating the exact hex values you used to ensure 1:1 match
 # 32'h000087C3 = 0.5303...
@@ -56,6 +64,7 @@ for i, v in enumerate(vertices):
     # NDC = Clip / W
     ndc_x = clip[0] / clip[3]
     ndc_y = clip[1] / clip[3]
+    ndc_z = clip[2] / clip[3]
     
     print(f"  [2] NDC (x_ndc, y_ndc):")
     print(f"      X: {ndc_x:.4f}")
@@ -67,6 +76,7 @@ for i, v in enumerate(vertices):
     # Screen Y = (NDC_Y + 1.0) * 120
     screen_x = (ndc_x + 1.0) * 160.0
     screen_y = (ndc_y + 1.0) * 120.0
+    screen_z = (ndc_z + 1.0) * 127.5 # [-1,1] to [0,255]
     
     # Convert to Q16.16 Hex for comparison
     def to_hex(val):
@@ -76,3 +86,4 @@ for i, v in enumerate(vertices):
     print(f"  [3] FINAL OUTPUT (Compare these to your waveform):")
     print(f"      x register (Dec): {int(screen_x)} (Hex: {to_hex(screen_x)})")
     print(f"      y register (Dec): {int(screen_y)} (Hex: {to_hex(screen_y)})")
+    print(f"      z register (Dec): {int(screen_z)} (Hex: {to_hex(screen_z)})")
