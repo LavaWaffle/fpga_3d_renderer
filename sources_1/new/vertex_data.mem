@@ -1,20 +1,45 @@
-// Vertex 0: (-1, -1, 1) Bottom-Left-Front
+// --- TRIANGLE 1: CCW (Front Facing / Valid) ---
+// V0: (-1, -1, 1) Bottom-Left
 FFFF0000
 FFFF0000
 00010000
-00000000 // U
-00000000 // V
+00000000
+00000000
 
-// Vertex 1: (1, -1, 1) Bottom-Right-Front
+// V1: (1, -1, 1) Bottom-Right
 00010000
 FFFF0000
 00010000
-00010000 // U
-00000000 // V
+00010000
+00000000
 
-// Vertex 2: (1, 1, 1) Top-Right-Front
+// V2: (1, 1, 1) Top-Right
 00010000
 00010000
 00010000
-00010000 // U
-00010000 // V
+00010000
+00010000
+
+
+
+// --- TRIANGLE 2: CW (Back Facing / Culled) ---
+// V0: (-2, -1, 1) Far-Left-Bottom
+FFFE0000
+FFFF0000
+00010000
+00000000
+00000000
+
+// V1: (-2, 1, 1) Far-Left-Top (Swapped order to make it CW)
+FFFE0000
+00010000
+00010000
+00000000
+00010000
+
+// V2: (0, -1, 1) Center-Bottom
+00000000
+FFFF0000
+00010000
+00010000
+00000000

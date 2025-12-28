@@ -21,11 +21,9 @@ module fpga_top(
         .o_u(geo_u), .o_v(geo_v)
     );
 
-    wire [103:0] assembler_data_in;
-    wire  assembler_fifo_empty;
-    wire  assembler_read_enable = 1'b0; // Placeholder for now
-    
-    // 2. The Vertex FIFO
+    wire [103:0] rasterizer_data_in;
+    wire  rasterizer_fifo_empty;
+    wire  rasterizer_read_enable = 1'b0; 
     vertex_fifo #(
         .DATA_WIDTH(104), // 32+32+8+16+16
         .DEPTH(64)
@@ -39,9 +37,9 @@ module fpga_top(
         .o_full(fifo_full),
         
         // Read Side (To Rasterizer/Assembler)
-        .i_re(assembler_read_enable), 
-        .o_data(assembler_data_in),
-        .o_empty(assembler_fifo_empty)
+        .i_re(rasterizer_read_enable), 
+        .o_data(rasterizer_data_in),
+        .o_empty(rasterizer_fifo_empty)
     );
 
     always_ff @(posedge clk) begin

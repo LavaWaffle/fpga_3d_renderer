@@ -71,7 +71,7 @@ module geometry_engine_tb;
         rst = 0;
         
         // 3. Monitor Loop for 3 Vertices
-        for (vertex_idx = 0; vertex_idx < 3; vertex_idx += 1) begin
+        for (vertex_idx = 0; vertex_idx < 6; vertex_idx += 1) begin
             $display("\n==========================================");
             $display(" Processing Vertex %0d", vertex_idx);
             $display("==========================================");
@@ -84,13 +84,13 @@ module geometry_engine_tb;
             wait(dut.state_i == dut.S_MATRIX_TRANSFORM);
             
             // NOTE: Ensure 'x_local', 'u', 'v' match the register names in your DUT
-            $display("  [0] Input Data (Model Space - from RAM):");
-            $display("      X: %0.4f (Hex: %h)", fixed_to_real(dut.x_local_i), dut.x_local_i);
-            $display("      Y: %0.4f (Hex: %h)", fixed_to_real(dut.y_local_i), dut.y_local_i);
-            $display("      Z: %0.4f (Hex: %h)", fixed_to_real(dut.z_local_i), dut.z_local_i);
-            // Assuming U/V are just passed through registers
-            $display("      U: %0.4f (Hex: %h)", fixed_to_real(dut.u_local_i), dut.u_local_i);
-            $display("      V: %0.4f (Hex: %h)", fixed_to_real(dut.v_local_i), dut.v_local_i);
+//            $display("  [0] Input Data (Model Space - from RAM):");
+//            $display("      X: %0.4f (Hex: %h)", fixed_to_real(dut.x_local_i), dut.x_local_i);
+//            $display("      Y: %0.4f (Hex: %h)", fixed_to_real(dut.y_local_i), dut.y_local_i);
+//            $display("      Z: %0.4f (Hex: %h)", fixed_to_real(dut.z_local_i), dut.z_local_i);
+//            // Assuming U/V are just passed through registers
+//            $display("      U: %0.4f (Hex: %h)", fixed_to_real(dut.u_local_i), dut.u_local_i);
+//            $display("      V: %0.4f (Hex: %h)", fixed_to_real(dut.v_local_i), dut.v_local_i);
 
             // Wait for the transition out of Transform
             @(posedge clk); 
@@ -101,11 +101,11 @@ module geometry_engine_tb;
             // B. Log CLIP SPACE (After Matrix Mult)
             // -----------------------------------------------------------------
             // Now in S_PERSP_DIVIDE, but regs hold Matrix result
-            $display("  [1] Clip Space (Post-Matrix):");
-            $display("      X: %0.4f (Hex: %h)", fixed_to_real(dut.x_clip_i), dut.x_clip_i);
-            $display("      Y: %0.4f (Hex: %h)", fixed_to_real(dut.y_clip_i), dut.y_clip_i);
-            $display("      Z: %0.4f (Hex: %h)", fixed_to_real(dut.z_clip_i), dut.z_clip_i);
-            $display("      W: %0.4f (Hex: %h)", fixed_to_real(dut.w_clip_i), dut.w_clip_i);
+//            $display("  [1] Clip Space (Post-Matrix):");
+//            $display("      X: %0.4f (Hex: %h)", fixed_to_real(dut.x_clip_i), dut.x_clip_i);
+//            $display("      Y: %0.4f (Hex: %h)", fixed_to_real(dut.y_clip_i), dut.y_clip_i);
+//            $display("      Z: %0.4f (Hex: %h)", fixed_to_real(dut.z_clip_i), dut.z_clip_i);
+//            $display("      W: %0.4f (Hex: %h)", fixed_to_real(dut.w_clip_i), dut.w_clip_i);
 
             // -----------------------------------------------------------------
             // C. Log NDC (Normalized Device Coordinates)
@@ -113,11 +113,11 @@ module geometry_engine_tb;
             // Wait for Division to finish
             wait(dut.state_i == dut.S_VIEWPORT_MAP);
             
-            $display("  [2] NDC (Perspective Divide):");
-            $display("      X: %0.4f", fixed_to_real(dut.x_ndc_i));
-            $display("      Y: %0.4f", fixed_to_real(dut.y_ndc_i));
-            // New Z Logic Check
-            $display("      Z: %0.4f", fixed_to_real(dut.z_ndc_i));
+//            $display("  [2] NDC (Perspective Divide):");
+//            $display("      X: %0.4f", fixed_to_real(dut.x_ndc_i));
+//            $display("      Y: %0.4f", fixed_to_real(dut.y_ndc_i));
+//            // New Z Logic Check
+//            $display("      Z: %0.4f", fixed_to_real(dut.z_ndc_i));
 
             // -----------------------------------------------------------------
             // D. Log FINAL OUTPUT (Screen Space)
@@ -126,7 +126,7 @@ module geometry_engine_tb;
             wait(dut.state_i == dut.S_VERTEX_FETCH);
             @(posedge clk); // Settle final assignment
 
-            $display("  [3] FINAL OUTPUT (Screen Coords):");
+            $display("  [3] FINAL OUTPUT (Screen Coords): %t", $time);
             $display("      x: %0.4f (Hex: %h)", fixed_to_real(dut.o_x), dut.o_x);
             $display("      y: %0.4f (Hex: %h)", fixed_to_real(dut.o_y), dut.o_y);
             $display("      z: %0d   (Hex: %h)", dut.o_z, dut.o_z); // Z is 8-bit int now
