@@ -56,10 +56,10 @@ module rasterizer(
     // Divider
     reg start_div;
     reg signed [31:0] div_num, div_den;
-    wire signed [31:0] div_res; // Result is 1.0 / Area (Q16.16)
+    wire signed [31:0] div_res; // Result is 1.0 / Area (Q2.32)
     wire div_done;
 
-    q16_16_div setup_div (
+    signed_div_32 setup_div (
         .i_clk(i_clk), .i_rst(i_rst), .i_start(start_div), 
         .i_dividend(div_num), .i_divisor(div_den),
         .o_quotient(div_res), .o_done(div_done)
@@ -74,6 +74,14 @@ module rasterizer(
         end
     endfunction
     
+    function signed [31:0] mul_q30(input signed [31:0] a, input signed [31:0] b);
+        logic signed [63:0] temp;
+        begin
+            temp = a * b;
+            mul_q30 = temp >>> 30; // Shift down by 30 to restore Q2.30 format
+        end
+    endfunction
+
     // Min/Max Helpers
     function signed [15:0] min3(input signed [15:0] a, b, c);
         min3 = (a < b) ? ((a < c) ? a : c) : ((b < c) ? b : c);
@@ -114,7 +122,7 @@ module rasterizer(
                     A20 <= i_y2 - i_y0; B20 <= i_x0 - i_x2;
 
                     // 2. Start Division (1.0 / Area)
-                    div_num <= 32'd1;
+                    div_num <= 32'd1 << 30;
                     div_den <=  (signed'(i_x1 - i_x0) * signed'(i_y2 - i_y0)) - 
                                 (signed'(i_x2 - i_x0) * signed'(i_y1 - i_y0));
                     
@@ -141,51 +149,104 @@ module rasterizer(
                     logic signed [31:0] gu_x, gu_y;
                     logic signed [31:0] gv_x, gv_y;
 
-                    // Z Gradients (Already there, just shifting 8-bit to Q16.16)
-                    z0_fix = {16'b0, i_z0, 8'b0}; 
-                    z1_fix = {16'b0, i_z1, 8'b0};
-                    z2_fix = {16'b0, i_z2, 8'b0};
-
-                    dz_dx <= mul_fix(z0_fix*A12 + z1_fix*A20 + z2_fix*A01, div_res);
-                    dz_dy <= mul_fix(z0_fix*B12 + z1_fix*B20 + z2_fix*B01, div_res);
-
-                    // U/V Gradients (Already in Q16.16, no shift needed)
-                    du_dx <= mul_fix(i_u0*A12 + i_u1*A20 + i_u2*A01, div_res);
-                    du_dy <= mul_fix(i_u0*B12 + i_u1*B20 + i_u2*B01, div_res);
+                    logic signed [63:0] dot_z, dot_u, dot_v;
                     
-                    dv_dx <= mul_fix(i_v0*A12 + i_v1*A20 + i_v2*A01, div_res);
-                    dv_dy <= mul_fix(i_v0*B12 + i_v1*B20 + i_v2*B01, div_res);
+                    // Temporary variables for inputs
+                    logic signed [31:0] z0_f, z1_f, z2_f;
+                    logic signed [31:0] u0_f, u1_f, u2_f;
+                    logic signed [31:0] v0_f, v1_f, v2_f;
+                    
+                    // Z Setup: Shift to [23:16] for Integer alignment
+                    // FIXED: Was {16'b0, i_z0, 8'b0} -> This was wrong!
+                    z0_f = {8'b0, i_z0, 16'b0}; 
+                    z1_f = {8'b0, i_z1, 16'b0};
+                    z2_f = {8'b0, i_z2, 16'b0};
+
+                    // U/V Setup: Q2.30
+                    u0_f = i_u0 <<< 30; 
+                    u1_f = i_u1 <<< 30;
+                    u2_f = i_u2 <<< 30;
+                    
+                    v0_f = i_v0 <<< 30;
+                    v1_f = i_v1 <<< 30;
+                    v2_f = i_v2 <<< 30;
+
+                    // --- Z Gradient Calculation ---
+                    // 1. Calculate Dot Product in 64-bit (Input * Edge)
+                    dot_z = signed'(z0_f)*A12 + signed'(z1_f)*A20 + signed'(z2_f)*A01;
+                    // 2. Multiply by 1/Area (div_res) and shift down Q2.30
+                    // dot_z is approx Q16.16 * Integer = Q32.16
+                    // div_res is Q2.30
+                    // Result: Q34.46. We need Q16.16 (dz_dx).
+                    // This multiplication is complex. Let's stick to mul_q30 logic but 64-bit.
+                    // Actually, for Z (Q16.16), mul_q30 is too aggressive. 
+                    // Let's use standard mul_fix logic (shift 16) for Z terms.
+                    dz_dx <= (dot_z * div_res) >>> 30; // Treat div_res as the scaler
+                    dz_dy <= (signed'(signed'(z0_f)*B12 + signed'(z1_f)*B20 + signed'(z2_f)*B01) * div_res) >>> 30;
+
+                    // --- U/V Gradient Calculation (The Critical Fix) ---
+                    // 1. Dot Product in 64-bit
+                    dot_u = signed'(u0_f)*A12 + signed'(u1_f)*A20 + signed'(u2_f)*A01;
+                    dot_v = signed'(v0_f)*A12 + signed'(v1_f)*A20 + signed'(v2_f)*A01;
+                    
+                    // 2. Multiply by Inverse Area (div_res is Q2.30)
+                    // dot_u is Q2.30 * Integer = Q32.30 (Massive!)
+                    // div_res is Q2.30
+                    // Result = Q34.60. 
+                    // To get Q2.30 result, we shift right by 30.
+                    du_dx <= (dot_u * div_res) >>> 30; 
+                    
+                    dot_u = signed'(u0_f)*B12 + signed'(u1_f)*B20 + signed'(u2_f)*B01;
+                    du_dy <= (dot_u * div_res) >>> 30;
+
+                    dv_dx <= (dot_v * div_res) >>> 30;
+                    dot_v = signed'(v0_f)*B12 + signed'(v1_f)*B20 + signed'(v2_f)*B01;
+                    dv_dy <= (dot_v * div_res) >>> 30;
 
                     // ---------------------------------------------------------
-                    // 2. Calculate Start Values at (min_x, min_y)
+                    // 2. Calculate Start Values
                     // ---------------------------------------------------------
-                    // Formula: Val_Start = Val0 + dX*(min_x - x0) + dY*(min_y - y0)
                     
-                    // Pre-calc distances from V0 to Start Pixel (Integer -> Fixed)
                     start_dx = signed'(min_x - i_x0) <<< 16; 
                     start_dy = signed'(min_y - i_y0) <<< 16;
 
-                    // We must re-calculate the gradient terms combinatorially here 
-                    // because the registers dz_dx/du_dx won't update until next clock.
+                    // Recalculate slopes locally for immediate use (Copy logic from above)
+                    // Note: We can rely on the registers dz_dx etc in TRAVERSAL, 
+                    // but for 'row_z' init, we need the values NOW.
                     
-                    // -- Z Start --
-                    gz_x = mul_fix(z0_fix*A12 + z1_fix*A20 + z2_fix*A01, div_res);
-                    gz_y = mul_fix(z0_fix*B12 + z1_fix*B20 + z2_fix*B01, div_res);
-                    row_z <= z0_fix + mul_fix(gz_x, start_dx) + mul_fix(gz_y, start_dy);
-                    p_z   <= z0_fix + mul_fix(gz_x, start_dx) + mul_fix(gz_y, start_dy);
+                    // Simplify: Use the 'dot' logic again implies huge combinatorial logic.
+                    // Optimization: Wait 1 clock cycle? 
+                    // For now, let's just copy the 64-bit logic to be safe.
                     
-                    // -- U Start --
-                    gu_x = mul_fix(i_u0*A12 + i_u1*A20 + i_u2*A01, div_res);
-                    gu_y = mul_fix(i_u0*B12 + i_u1*B20 + i_u2*B01, div_res);
-                    row_u <= i_u0 + mul_fix(gu_x, start_dx) + mul_fix(gu_y, start_dy);
-                    p_u   <= i_u0 + mul_fix(gu_x, start_dx) + mul_fix(gu_y, start_dy);
+                    // Z Slopes
+                    dot_z = signed'(z0_f)*A12 + signed'(z1_f)*A20 + signed'(z2_f)*A01;
+                    gz_x = (dot_z * div_res) >>> 30;
+                    dot_z = signed'(z0_f)*B12 + signed'(z1_f)*B20 + signed'(z2_f)*B01;
+                    gz_y = (dot_z * div_res) >>> 30;
+                    
+                    row_z <= z0_f + mul_fix(gz_x, start_dx) + mul_fix(gz_y, start_dy);
+                    p_z   <= z0_f + mul_fix(gz_x, start_dx) + mul_fix(gz_y, start_dy);
 
-                    // -- V Start --
-                    gv_x = mul_fix(i_v0*A12 + i_v1*A20 + i_v2*A01, div_res);
-                    gv_y = mul_fix(i_v0*B12 + i_v1*B20 + i_v2*B01, div_res);
-                    row_v <= i_v0 + mul_fix(gv_x, start_dx) + mul_fix(gv_y, start_dy);
-                    p_v   <= i_v0 + mul_fix(gv_x, start_dx) + mul_fix(gv_y, start_dy);
+                    // U Slopes
+                    dot_u = signed'(u0_f)*A12 + signed'(u1_f)*A20 + signed'(u2_f)*A01;
+                    gu_x = (dot_u * div_res) >>> 30;
+                    dot_u = signed'(u0_f)*B12 + signed'(u1_f)*B20 + signed'(u2_f)*B01;
+                    gu_y = (dot_u * div_res) >>> 30;
                     
+                    // Apply Slope (Slope is Q2.30, Dist is Q16.16)
+                    // mul_fix shifts by 16. Q2.30 * Q16.16 >> 16 = Q2.30. Correct.
+                    row_u <= u0_f + mul_fix(gu_x, start_dx) + mul_fix(gu_y, start_dy);
+                    p_u   <= u0_f + mul_fix(gu_x, start_dx) + mul_fix(gu_y, start_dy);
+
+                    // V Slopes
+                    dot_v = signed'(v0_f)*A12 + signed'(v1_f)*A20 + signed'(v2_f)*A01;
+                    gv_x = (dot_v * div_res) >>> 30;
+                    dot_v = signed'(v0_f)*B12 + signed'(v1_f)*B20 + signed'(v2_f)*B01;
+                    gv_y = (dot_v * div_res) >>> 30;
+
+                    row_v <= v0_f + mul_fix(gv_x, start_dx) + mul_fix(gv_y, start_dy);
+                    p_v   <= v0_f + mul_fix(gv_x, start_dx) + mul_fix(gv_y, start_dy);
+
                     // Setup Loop
                     cur_x <= min_x;
                     cur_y <= min_y;
@@ -223,32 +284,32 @@ module rasterizer(
                             logic [3:0] r_val, g_val, b_val;
                             logic signed [31:0] p_w;
                             
-                            p_w = 32'h00010000 - p_u - p_v;
+                            p_w = 32'h40000000 - p_u - p_v; // Q2.30 W = 1.0 - U - V
                             
                             if (p_u[31]) begin                 // Negative?
                                 r_val = 0;
-                            end else if (|p_u[30:16]) begin    // Overflow? (Any bit >= 1.0 is set)
+                            end else if (p_u[30]) begin        // Integer bit set? (>= 1.0)
                                 r_val = 4'hF;                  // Clamp to Max
                             end else begin
-                                r_val = p_u[15:12];            // Normal Range
+                                r_val = p_u[29:26];            // Take top 4 fraction bits
                             end
 
                             // 2. Green Channel (from V)
                             if (p_v[31]) begin
                                 g_val = 0;
-                            end else if (|p_v[30:16]) begin
+                            end else if (p_v[30]) begin
                                 g_val = 4'hF;
                             end else begin
-                                g_val = p_v[15:12];
+                                g_val = p_v[29:26];
                             end
 
                             // 3. Blue Channel (from W)
                             if (p_w[31]) begin
                                 b_val = 0;
-                            end else if (|p_w[30:16]) begin
+                            end else if (p_w[30]) begin
                                 b_val = 4'hF;
                             end else begin
-                                b_val = p_w[15:12];
+                                b_val = p_w[29:26];
                             end
                             
                             // Write Gradient Pixel
