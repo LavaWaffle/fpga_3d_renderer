@@ -100,7 +100,7 @@ if __name__ == "__main__":
     FAR_PLANE    = 20.0
 
     # 2. CAMERA SETTINGS
-    CAM_POS    = [0.0, 5.0, 10.0]
+    CAM_POS    = [0.0, 0.0, 10.0]
     CAM_TARGET = [0.0, 0.0, 0.0]
     CAM_UP     = [0.0, 1.0, 0.0]
 
