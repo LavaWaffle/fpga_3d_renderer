@@ -50,7 +50,7 @@ module fragment_shader(
         o_zb_w_addr    = i_pixel_addr;
 
         // 1. Convert Z to 8-bit
-        z_new_8bit = i_p_z[7:0]; // Q16.16 scaled, taking integer part approx
+        z_new_8bit = i_p_z[7:0]; //i_p_z[7:0]; // Q16.16 scaled, taking integer part approx
         // (If p_z is negative, clamp to 0 handled implicitly by unsigned cast or check)
         
         // 2. Z-Test Logic
@@ -94,10 +94,4 @@ module fragment_shader(
             o_zb_w_we      = 1;
         end
     end
-
-    // Note: The output signals here are Combinatorial. 
-    // In a strict pipeline, you might register these outputs one last time.
-    // However, since BRAM writes are usually synchronous (happen on next clock edge),
-    // driving WE/Addr/Data combinatorially into the BRAM is standard practice.
-
 endmodule

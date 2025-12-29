@@ -45,17 +45,17 @@ module top_level_tb;
 
     // Geometry Engine Output Monitoring
     always @(posedge clk) begin
-        if (dut.gem_engine.o_vertex_valid == 1) begin
-            $display("\n==========================================");
-            $display(" Processing Vertex %0d", vertex_idx);
-            $display("==========================================");
-            $display(" Output X: %f", fixed_to_real_q16_16(dut.gem_engine.o_x));
-            $display(" Output Y: %f", fixed_to_real_q16_16(dut.gem_engine.o_y));
-            $display(" Output Z: %0d", dut.gem_engine.o_z);
-            $display(" Output U: %f", fixed_to_real_q16_16(dut.gem_engine.o_u));
-            $display(" Output V: %f", fixed_to_real_q16_16(dut.gem_engine.o_v));
-            @(posedge clk);
-        end
+        // if (dut.gem_engine.o_vertex_valid == 1) begin
+        //     $display("\n==========================================");
+        //     $display(" Processing Vertex %0d", vertex_idx);
+        //     $display("==========================================");
+        //     $display(" Output X: %f", fixed_to_real_q16_16(dut.gem_engine.o_x));
+        //     $display(" Output Y: %f", fixed_to_real_q16_16(dut.gem_engine.o_y));
+        //     $display(" Output Z: %0d", dut.gem_engine.o_z);
+        //     $display(" Output U: %f", fixed_to_real_q16_16(dut.gem_engine.o_u));
+        //     $display(" Output V: %f", fixed_to_real_q16_16(dut.gem_engine.o_v));
+        //     @(posedge clk);
+        // end
     end
 
     // Format: {x[15:0], y[15:0], z[7:0], u[31:0], v[31:0]}
@@ -66,42 +66,42 @@ module top_level_tb;
     // wire [31:0]        in_v = i_fifo_data[31:0];
     // Vertex FIFO Input and Output Monitoring
     always @(posedge clk) begin
-        if (dut.fifo_inst.i_we) begin
-            $display(" Vertex FIFO Input - X: %0d, Y: %0d, Z: %0d, U: %0d, V: %0d",
-                     dut.fifo_inst.i_data[103:88],
-                     dut.fifo_inst.i_data[87:72],
-                     dut.fifo_inst.i_data[71:64],
-                     fixed_to_real_q16_16(dut.fifo_inst.i_data[63:32]),
-                     fixed_to_real_q16_16(dut.fifo_inst.i_data[31:0]));
-        end
-        if (dut.fifo_inst.i_re) begin
-            $display(" Vertex FIFO Output - X: %0d, Y: %0d, Z: %0d, U: %0d, V: %0d",
-                     dut.fifo_inst.o_data[103:88],
-                     dut.fifo_inst.o_data[87:72],
-                     dut.fifo_inst.o_data[71:64],
-                     fixed_to_real_q16_16(dut.fifo_inst.o_data[63:32]),
-                     fixed_to_real_q16_16(dut.fifo_inst.o_data[31:0]));
-        end
+        // if (dut.fifo_inst.i_we) begin
+        //     $display(" Vertex FIFO Input - X: %0d, Y: %0d, Z: %0d, U: %0d, V: %0d",
+        //              dut.fifo_inst.i_data[103:88],
+        //              dut.fifo_inst.i_data[87:72],
+        //              dut.fifo_inst.i_data[71:64],
+        //              fixed_to_real_q16_16(dut.fifo_inst.i_data[63:32]),
+        //              fixed_to_real_q16_16(dut.fifo_inst.i_data[31:0]));
+        // end
+        // if (dut.fifo_inst.i_re) begin
+        //     $display(" Vertex FIFO Output - X: %0d, Y: %0d, Z: %0d, U: %0d, V: %0d",
+        //              dut.fifo_inst.o_data[103:88],
+        //              dut.fifo_inst.o_data[87:72],
+        //              dut.fifo_inst.o_data[71:64],
+        //              fixed_to_real_q16_16(dut.fifo_inst.o_data[63:32]),
+        //              fixed_to_real_q16_16(dut.fifo_inst.o_data[31:0]));
+        // end
     end
 
     // Triangle Assembler Input and Output Monitoring
     always @(posedge clk) begin
-        if (!dut.triangle_assembler_instance.i_fifo_empty && dut.triangle_assembler_instance.o_fifo_read) begin
-            $display(" Triangle Assembler Input - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d",
-                     dut.triangle_assembler_instance.i_fifo_data[103:88],
-                     dut.triangle_assembler_instance.i_fifo_data[87:72],
-                     dut.triangle_assembler_instance.i_fifo_data[71:64],
-                     fixed_to_real_q16_16(dut.triangle_assembler_instance.i_fifo_data[63:32]),
-                     fixed_to_real_q16_16(dut.triangle_assembler_instance.i_fifo_data[31:0]));
-        end
-        if (dut.triangle_assembler_instance.o_tri_valid) begin
-            $display(" Triangle Assembler Output - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d",
-                     dut.triangle_assembler_instance.o_x0,
-                     dut.triangle_assembler_instance.o_y0,
-                     dut.triangle_assembler_instance.o_z0,
-                     fixed_to_real_q16_16(dut.triangle_assembler_instance.o_u0),
-                     fixed_to_real_q16_16(dut.triangle_assembler_instance.o_v0));
-        end
+        // if (!dut.triangle_assembler_instance.i_fifo_empty && dut.triangle_assembler_instance.o_fifo_read) begin
+        //     $display(" Triangle Assembler Input - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d",
+        //              dut.triangle_assembler_instance.i_fifo_data[103:88],
+        //              dut.triangle_assembler_instance.i_fifo_data[87:72],
+        //              dut.triangle_assembler_instance.i_fifo_data[71:64],
+        //              fixed_to_real_q16_16(dut.triangle_assembler_instance.i_fifo_data[63:32]),
+        //              fixed_to_real_q16_16(dut.triangle_assembler_instance.i_fifo_data[31:0]));
+        // end
+        // if (dut.triangle_assembler_instance.o_tri_valid) begin
+        //     $display(" Triangle Assembler Output - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d",
+        //              dut.triangle_assembler_instance.o_x0,
+        //              dut.triangle_assembler_instance.o_y0,
+        //              dut.triangle_assembler_instance.o_z0,
+        //              fixed_to_real_q16_16(dut.triangle_assembler_instance.o_u0),
+        //              fixed_to_real_q16_16(dut.triangle_assembler_instance.o_v0));
+        // end
     end
 
     // Rasterizer Input Monitoring
@@ -234,9 +234,9 @@ module top_level_tb;
         $readmemh("vertex_data.mem", dut.gem_engine.vertex_ram.ram);
 
         for (frame_count = 0; frame_count < 16; frame_count = frame_count + 1) begin
-            $display("\n\n\n---------------------------------");
+            $display("\n---------------------------------");
             $display("FRAME %0d", frame_count);
-            $display("---------------------------------\n\n\n");
+            $display("---------------------------------\n");
 
             // 2. Reset
             rst = 1;
@@ -288,7 +288,7 @@ module top_level_tb;
                 end
                 begin
                     // Corrected to match comment (or change comment to 250)
-                    #(500us); 
+                    #(250us); 
                     $error("TIMEOUT: Rasterizer took too long to finish!");
                 end
             join_any

@@ -31,27 +31,37 @@ module edge_engine(
     logic inside_comb;
 
     always_comb begin
+        logic all_pos, all_neg;
         // =====================================================================
         // Barycentric Weight Calculation (Cross Product)
         // =====================================================================
-        // w0: Edge 0-1 (Opposite Vertex 2)
-        w0_comb = (i_p_x - i_x0) * (i_y1 - i_y0) - (i_p_y - i_y0) * (i_x1 - i_x0);
+        // Force 32-bit math for the multiplication by casting inputs first
+        // 1. Calculate Weights (Using the 32-bit cast fix from before)
+        w0_comb = (signed'(32'(i_p_x)) - signed'(32'(i_x0))) * (signed'(32'(i_y1)) - signed'(32'(i_y0))) - 
+                  (signed'(32'(i_p_y)) - signed'(32'(i_y0))) * (signed'(32'(i_x1)) - signed'(32'(i_x0)));
         
-        // w1: Edge 1-2 (Opposite Vertex 0)
-        w1_comb = (i_p_x - i_x1) * (i_y2 - i_y1) - (i_p_y - i_y1) * (i_x2 - i_x1);
+        w1_comb = (signed'(32'(i_p_x)) - signed'(32'(i_x1))) * (signed'(32'(i_y2)) - signed'(32'(i_y1))) - 
+                  (signed'(32'(i_p_y)) - signed'(32'(i_y1))) * (signed'(32'(i_x2)) - signed'(32'(i_x1)));
         
-        // w2: Edge 2-0 (Opposite Vertex 1)
-        w2_comb = (i_p_x - i_x2) * (i_y0 - i_y2) - (i_p_y - i_y2) * (i_x0 - i_x2);
+        w2_comb = (signed'(32'(i_p_x)) - signed'(32'(i_x2))) * (signed'(32'(i_y0)) - signed'(32'(i_y2))) - 
+                  (signed'(32'(i_p_y)) - signed'(32'(i_y2))) * (signed'(32'(i_x0)) - signed'(32'(i_x2)));
 
-        // =====================================================================
-        // Inside Check
-        // =====================================================================
-        // Basic >= 0 check. 
-        // (Optional: You can add Top-Left fill rule logic here later if needed)
-        if (w0_comb >= 0 && w1_comb >= 0 && w2_comb >= 0) begin
-            inside_comb = 1'b1;
+        
+        all_pos = (w0_comb >= 0) && (w1_comb >= 0) && (w2_comb >= 0);
+        all_neg = (w0_comb <= 0) && (w1_comb <= 0) && (w2_comb <= 0);
+        
+        if (all_pos) begin
+            // Front Face: Pass through as is
+            o_w0 = w0_comb; o_w1 = w1_comb; o_w2 = w2_comb;
+            o_inside = 1'b1;
+        end else if (all_neg) begin
+            // Back Face: Negate weights to make them Positive
+            o_w0 = -w0_comb; o_w1 = -w1_comb; o_w2 = -w2_comb;
+            o_inside = 1'b1;
         end else begin
-            inside_comb = 1'b0;
+            // Outside
+            o_w0 = 0; o_w1 = 0; o_w2 = 0; // or don't care
+            o_inside = 1'b0;
         end
     end
 

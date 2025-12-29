@@ -96,8 +96,8 @@ module rasterizer(
                 SETUP_MATH: begin
                     // Calculate Signed Area (for Divider)
                     div_num <= 32'd1;
-                    div_den <= (signed'(32'(i_x2 - i_x0)) * signed'(32'(i_y1 - i_y0))) - 
-                            (signed'(32'(i_x1 - i_x0)) * signed'(32'(i_y2 - i_y0)));
+                    div_den <= ( signed'(32'(i_x2) - 32'(i_x0)) * signed'(32'(i_y1) - 32'(i_y0)) ) - 
+                               ( signed'(32'(i_x1) - 32'(i_x0)) * signed'(32'(i_y2) - 32'(i_y0)) );
                     
                     start_div <= 1;
                     state <= SETUP_DIV;
