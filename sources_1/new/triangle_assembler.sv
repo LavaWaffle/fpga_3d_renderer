@@ -128,9 +128,9 @@ module triangle_assembler(
                 end
 
                 OUTPUT_TRI: begin
+                    o_tri_valid <= 1;
                     // Wait for Rasterizer to be ready
                     if (!i_raster_busy) begin
-                        o_tri_valid <= 1;
                         state <= WAIT_V0;
                     end
                 end

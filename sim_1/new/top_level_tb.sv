@@ -45,17 +45,17 @@ module top_level_tb;
 
     // Geometry Engine Output Monitoring
     always @(posedge clk) begin
-        // if (dut.gem_engine.o_vertex_valid == 1) begin
-        //     $display("\n==========================================");
-        //     $display(" Processing Vertex %0d", vertex_idx);
-        //     $display("==========================================");
-        //     $display(" Output X: %f", fixed_to_real_q16_16(dut.gem_engine.o_x));
-        //     $display(" Output Y: %f", fixed_to_real_q16_16(dut.gem_engine.o_y));
-        //     $display(" Output Z: %0d", dut.gem_engine.o_z);
-        //     $display(" Output U: %f", fixed_to_real_q16_16(dut.gem_engine.o_u));
-        //     $display(" Output V: %f", fixed_to_real_q16_16(dut.gem_engine.o_v));
-        //     @(posedge clk);
-        // end
+        if (dut.gem_engine.o_vertex_valid == 1) begin
+            $display("\n==========================================");
+            $display(" Processing Vertex %0d", vertex_idx);
+            $display("==========================================");
+            $display(" Output X: %f", fixed_to_real_q16_16(dut.gem_engine.o_x));
+            $display(" Output Y: %f", fixed_to_real_q16_16(dut.gem_engine.o_y));
+            $display(" Output Z: %0d", dut.gem_engine.o_z);
+            $display(" Output U: %f", fixed_to_real_q16_16(dut.gem_engine.o_u));
+            $display(" Output V: %f", fixed_to_real_q16_16(dut.gem_engine.o_v));
+            @(posedge clk);
+        end
     end
 
     // Format: {x[15:0], y[15:0], z[7:0], u[31:0], v[31:0]}
@@ -66,47 +66,47 @@ module top_level_tb;
     // wire [31:0]        in_v = i_fifo_data[31:0];
     // Vertex FIFO Input and Output Monitoring
     always @(posedge clk) begin
-        // if (dut.fifo_inst.i_we) begin
-        //     $display(" Vertex FIFO Input - X: %0d, Y: %0d, Z: %0d, U: %0d, V: %0d",
-        //              dut.fifo_inst.i_data[103:88],
-        //              dut.fifo_inst.i_data[87:72],
-        //              dut.fifo_inst.i_data[71:64],
-        //              fixed_to_real_q16_16(dut.fifo_inst.i_data[63:32]),
-        //              fixed_to_real_q16_16(dut.fifo_inst.i_data[31:0]));
-        // end
-        // if (dut.fifo_inst.i_re) begin
-        //     $display(" Vertex FIFO Output - X: %0d, Y: %0d, Z: %0d, U: %0d, V: %0d",
-        //              dut.fifo_inst.o_data[103:88],
-        //              dut.fifo_inst.o_data[87:72],
-        //              dut.fifo_inst.o_data[71:64],
-        //              fixed_to_real_q16_16(dut.fifo_inst.o_data[63:32]),
-        //              fixed_to_real_q16_16(dut.fifo_inst.o_data[31:0]));
-        // end
+        if (dut.fifo_inst.i_we) begin
+            $display(" Vertex FIFO Input - X: %0d, Y: %0d, Z: %0d, U: %0d, V: %0d",
+                     dut.fifo_inst.i_data[103:88],
+                     dut.fifo_inst.i_data[87:72],
+                     dut.fifo_inst.i_data[71:64],
+                     fixed_to_real_q16_16(dut.fifo_inst.i_data[63:32]),
+                     fixed_to_real_q16_16(dut.fifo_inst.i_data[31:0]));
+        end
+        if (dut.fifo_inst.i_re) begin
+            $display(" Vertex FIFO Output - X: %0d, Y: %0d, Z: %0d, U: %0d, V: %0d",
+                     dut.fifo_inst.o_data[103:88],
+                     dut.fifo_inst.o_data[87:72],
+                     dut.fifo_inst.o_data[71:64],
+                     fixed_to_real_q16_16(dut.fifo_inst.o_data[63:32]),
+                     fixed_to_real_q16_16(dut.fifo_inst.o_data[31:0]));
+        end
     end
 
     // Triangle Assembler Input and Output Monitoring
     always @(posedge clk) begin
-        // if (!dut.triangle_assembler_instance.i_fifo_empty && dut.triangle_assembler_instance.o_fifo_read) begin
-        //     $display(" Triangle Assembler Input - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d",
-        //              dut.triangle_assembler_instance.i_fifo_data[103:88],
-        //              dut.triangle_assembler_instance.i_fifo_data[87:72],
-        //              dut.triangle_assembler_instance.i_fifo_data[71:64],
-        //              fixed_to_real_q16_16(dut.triangle_assembler_instance.i_fifo_data[63:32]),
-        //              fixed_to_real_q16_16(dut.triangle_assembler_instance.i_fifo_data[31:0]));
-        // end
-        // if (dut.triangle_assembler_instance.o_tri_valid) begin
-        //     $display(" Triangle Assembler Output - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d",
-        //              dut.triangle_assembler_instance.o_x0,
-        //              dut.triangle_assembler_instance.o_y0,
-        //              dut.triangle_assembler_instance.o_z0,
-        //              fixed_to_real_q16_16(dut.triangle_assembler_instance.o_u0),
-        //              fixed_to_real_q16_16(dut.triangle_assembler_instance.o_v0));
-        // end
+        if (!dut.triangle_assembler_instance.i_fifo_empty && dut.triangle_assembler_instance.o_fifo_read) begin
+            $display(" Triangle Assembler Input - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d",
+                     dut.triangle_assembler_instance.i_fifo_data[103:88],
+                     dut.triangle_assembler_instance.i_fifo_data[87:72],
+                     dut.triangle_assembler_instance.i_fifo_data[71:64],
+                     fixed_to_real_q16_16(dut.triangle_assembler_instance.i_fifo_data[63:32]),
+                     fixed_to_real_q16_16(dut.triangle_assembler_instance.i_fifo_data[31:0]));
+        end
+        if (dut.triangle_assembler_instance.o_tri_valid && dut.rasterizer_instance.o_busy == 0) begin
+            $display(" Triangle Assembler Output - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d",
+                     dut.triangle_assembler_instance.o_x0,
+                     dut.triangle_assembler_instance.o_y0,
+                     dut.triangle_assembler_instance.o_z0,
+                     fixed_to_real_q16_16(dut.triangle_assembler_instance.o_u0),
+                     fixed_to_real_q16_16(dut.triangle_assembler_instance.o_v0));
+        end
     end
 
     // Rasterizer Input Monitoring
     always @(posedge clk) begin
-        if (dut.rasterizer_instance.i_tri_valid) begin
+        if (dut.rasterizer_instance.i_tri_valid && dut.rasterizer_instance.o_busy == 0) begin
             $display(" Rasterizer Input - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d",
                      dut.rasterizer_instance.i_x0,
                      dut.rasterizer_instance.i_y0,
@@ -126,6 +126,16 @@ module top_level_tb;
                      dut.rasterizer_instance.i_z2,
                      dut.rasterizer_instance.i_u2,
                      dut.rasterizer_instance.i_v2);
+        end
+    end
+
+    // Rast Start End Monitoring
+    always @(posedge clk) begin
+        wait (dut.rasterizer_instance.o_busy == 1) begin
+            $display(" Rasterizer Busy Started at time %t", $time);
+        end
+        wait (dut.rasterizer_instance.o_busy == 0) begin
+            $display(" Rasterizer Busy Ended at time %t", $time);
         end
     end
 
@@ -196,17 +206,17 @@ module top_level_tb;
             
             // --- LOGGING ---
             // Note: Accessed via 'dut.stage4_shader.i_p_u' because signals are inside submodules now
-//             $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | zbufdata=%h | P: u=%h, v=%h z=%h", 
-//                      $time, 
-//                      fb_addr, 
-//                      fb_addr % 320, // Extract X
-//                      fb_addr / 320, // Extract Y
-//                      fb_pixel, 
-//                      dut.rasterizer_instance.stage4_shader.i_zb_cur_val,
-//                      dut.rasterizer_instance.stage4_shader.i_p_u, 
-//                      dut.rasterizer_instance.stage4_shader.i_p_v,
-//                      dut.rasterizer_instance.stage4_shader.i_p_z
-//             );
+            $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | zbufdata=%h | P: u=%h, v=%h z=%h", 
+                     $time, 
+                     fb_addr, 
+                     fb_addr % 320, // Extract X
+                     fb_addr / 320, // Extract Y
+                     fb_pixel, 
+                     dut.rasterizer_instance.stage4_shader.i_zb_cur_val,
+                     dut.rasterizer_instance.stage4_shader.i_p_u, 
+                     dut.rasterizer_instance.stage4_shader.i_p_v,
+                     dut.rasterizer_instance.stage4_shader.i_p_z
+            );
         end
 
         // Z-Buffer Write (Using same WRITE address from Stage 4)
@@ -283,12 +293,14 @@ module top_level_tb;
                     $display("Rasterizer Busy Started at time %t", $time);
                     
                     // Wait for it to finish
-                    wait(dut.rasterizer_instance.o_busy == 0);
+                    wait(dut.rasterizer_instance.o_busy == 0 && 
+                    dut.rasterizer_fifo_empty == 1 && 
+                    dut.triangle_assembler_instance.o_tri_valid == 0);
                     $display("Rasterizer Busy Ended at time %t", $time);
                 end
                 begin
                     // Corrected to match comment (or change comment to 250)
-                    #(250us); 
+                    #(5000us); 
                     $error("TIMEOUT: Rasterizer took too long to finish!");
                 end
                 begin

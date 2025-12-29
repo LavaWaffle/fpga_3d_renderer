@@ -24,6 +24,11 @@ module rasterizer(
     output wire [7:0]  o_zb_w_data
 );
 
+    // Internal Latches
+    reg signed [15:0] x0_i, y0_i, x1_i, y1_i, x2_i, y2_i;
+    reg [7:0]         z0_i, z1_i, z2_i;
+    reg [31:0]        u0_i, v0_i, u1_i, v1_i, u2_i, v2_i;
+
     // =========================================================================
     // 1. Internal Signals & Setup Logic
     // =========================================================================
@@ -76,6 +81,9 @@ module rasterizer(
             o_busy <= 0;
             iter_start <= 0;
             flush_count <= 0;
+            x0_i <= 0; y0_i <= 0; x1_i <= 0; y1_i <= 0; x2_i <= 0; y2_i <= 0;
+            z0_i <= 0; z1_i <= 0; z2_i <= 0;
+            u0_i <= 0; v0_i <= 0; u1_i <= 0; v1_i <= 0; u2_i <= 0; v2_i <= 0;
         end else begin
             // Default Pulses
             iter_start <= 0;
@@ -84,11 +92,17 @@ module rasterizer(
                 IDLE: begin
                     if (i_tri_valid) begin
                         o_busy <= 1;
+                        
                         // Clamp Bounding Box
                         min_x <= (min3(i_x0, i_x1, i_x2) < 0) ? 0 : min3(i_x0, i_x1, i_x2);
                         max_x <= (max3(i_x0, i_x1, i_x2) > 319) ? 319 : max3(i_x0, i_x1, i_x2);
                         min_y <= (min3(i_y0, i_y1, i_y2) < 0) ? 0 : min3(i_y0, i_y1, i_y2);
                         max_y <= (max3(i_y0, i_y1, i_y2) > 239) ? 239 : max3(i_y0, i_y1, i_y2);
+
+                        x0_i <= i_x0; y0_i <= i_y0; x1_i <= i_x1; y1_i <= i_y1; x2_i <= i_x2; y2_i <= i_y2;
+                        z0_i <= i_z0; z1_i <= i_z1; z2_i <= i_z2;
+                        u0_i <= i_u0; v0_i <= i_v0; u1_i <= i_u1; v1_i <= i_v1; u2_i <= i_u2; v2_i <= i_v2;
+
                         state <= SETUP_MATH;
                     end
                 end
@@ -96,8 +110,8 @@ module rasterizer(
                 SETUP_MATH: begin
                     // Calculate Signed Area (for Divider)
                     div_num <= 32'd1;
-                    div_den <= ( signed'(32'(i_x2) - 32'(i_x0)) * signed'(32'(i_y1) - 32'(i_y0)) ) - 
-                               ( signed'(32'(i_x1) - 32'(i_x0)) * signed'(32'(i_y2) - 32'(i_y0)) );
+                    div_den <= ( signed'(32'(x2_i) - 32'(x0_i)) * signed'(32'(y1_i) - 32'(y0_i)) ) - 
+                               ( signed'(32'(x1_i) - 32'(x0_i)) * signed'(32'(y2_i) - 32'(y0_i)) );
                     
                     start_div <= 1;
                     state <= SETUP_DIV;
@@ -168,7 +182,7 @@ module rasterizer(
     // --- Stage 2: Edge Engine ---
     edge_engine stage2_edge (
         .i_clk(i_clk), .i_rst(i_rst),
-        .i_x0(i_x0), .i_y0(i_y0), .i_x1(i_x1), .i_y1(i_y1), .i_x2(i_x2), .i_y2(i_y2),
+        .i_x0(x0_i), .i_y0(y0_i), .i_x1(x1_i), .i_y1(y1_i), .i_x2(x2_i), .i_y2(y2_i),
         .i_p_x(s1_x), .i_p_y(s1_y), .i_valid(s1_valid),
         .o_w0(s2_w0), .o_w1(s2_w1), .o_w2(s2_w2),
         .o_inside(s2_inside), .o_valid(s2_valid)
@@ -178,9 +192,9 @@ module rasterizer(
     interpolator stage3_interp (
         .i_clk(i_clk), .i_rst(i_rst),
         .i_inv_area(div_res),
-        .i_z0(i_z0), .i_z1(i_z1), .i_z2(i_z2),
-        .i_u0(i_u0), .i_u1(i_u1), .i_u2(i_u2),
-        .i_v0(i_v0), .i_v1(i_v1), .i_v2(i_v2),
+        .i_z0(z0_i), .i_z1(z1_i), .i_z2(z2_i),
+        .i_u0(u0_i), .i_u1(u1_i), .i_u2(u2_i),
+        .i_v0(v0_i), .i_v1(v1_i), .i_v2(v2_i),
         .i_w0(s2_w0), .i_w1(s2_w1), .i_w2(s2_w2),
         .i_inside(s2_inside), .i_valid(s2_valid),
         .o_p_z(s3_p_z), .o_p_u(s3_p_u), .o_p_v(s3_p_v),
@@ -195,13 +209,14 @@ module rasterizer(
     // The Math arrives at the shader inputs after Stage 3 finishes (2 clocks latency).
     // We need to delay the address by 2 clocks.
     
-    reg [16:0] addr_d1, addr_d2;
+    reg [16:0] addr_d1, addr_d2, addr_d3;
     reg [7:0]  zb_data_d1;
 
     always_ff @(posedge i_clk) begin
         // Delay Address (Cycle 1 -> Cycle 3)
         addr_d1 <= s1_zb_addr_gen;
-        addr_d2 <= addr_d1; 
+        addr_d2 <= addr_d1;
+        addr_d3 <= addr_d2; 
 
         // Delay Read Data (Cycle 2 -> Cycle 3)
         // Assumption: BRAM Read Latency = 1 Cycle.
@@ -219,7 +234,7 @@ module rasterizer(
         .i_inside(s3_inside), .i_valid(s3_valid),
         
         // Inputs from Delay Line
-        .i_pixel_addr(addr_d2), 
+        .i_pixel_addr(addr_d1), 
         .i_zb_cur_val(zb_data_d1),
 
         // Outputs
