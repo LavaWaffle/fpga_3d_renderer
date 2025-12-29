@@ -16,13 +16,16 @@ module rasterizer_tb;
     reg [31:0]        u0, v0, u1, v1, u2, v2;
 
     // Frame Buffer Interface (Outputs from DUT)
+    // In Pipelined mode: This acts as the WRITE address for both FB and ZB
     wire [16:0] fb_addr;
     wire        fb_we;
     wire [11:0] fb_pixel; // Format: 4R, 4G, 4B
 
     // Z-Buffer Interface
-    wire [16:0] zb_addr;
+    // In Pipelined mode: This acts as the READ address (from Stage 1)
+    wire [16:0] zb_read_addr; 
     reg  [7:0]  zb_read_data; // Input to DUT
+    wire [16:0] zb_w_addr;
     wire        zb_we;
     wire [7:0]  zb_write_data;
 
@@ -52,43 +55,58 @@ module rasterizer_tb;
         .i_u1(u1), .i_v1(v1), 
         .i_u2(u2), .i_v2(v2),
 
+        // Write Port (Stage 4)
         .o_fb_addr(fb_addr),
         .o_fb_we(fb_we),
         .o_fb_pixel(fb_pixel),
 
-        .o_zb_addr(zb_addr),
-        .i_zb_data(zb_read_data),
-        .o_zb_we(zb_we),
-        .o_zb_data(zb_write_data)
+        // Read Port (Stage 1) & Write Data
+        // Note: We connect the DUT's 'o_zb_addr' to our 'zb_read_addr' wire
+        // because in the new design, o_zb_addr is driven by the Iterator (Stage 1).
+        .o_zb_r_addr(zb_read_addr),
+        .i_zb_r_data(zb_read_data),
+        .o_zb_w_addr(zb_w_addr),
+        .o_zb_w_we(zb_we),
+        .o_zb_w_data(zb_write_data)
     );
 
     // =========================================================================
-    // 4. Memory Logic (Simulate BRAM behavior) & LOGGING
+    // 4. Memory Logic (Dual Port Simulation) & LOGGING
     // =========================================================================
     always @(posedge clk) begin
+        // ---------------------------------------------------------------------
+        // PORT A: READ (Stage 1)
+        // ---------------------------------------------------------------------
+        // The pipeline requests data at 'zb_read_addr'. 
+        // We deliver it to 'zb_read_data' on the next edge (Synchronous Read).
+        zb_read_data <= z_buffer[zb_read_addr];
+
+        // ---------------------------------------------------------------------
+        // PORT B: WRITE (Stage 4)
+        // ---------------------------------------------------------------------
         // Frame Buffer Write
         if (fb_we) begin
             frame_buffer[fb_addr] <= fb_pixel;
             
-            // --- NEW LOGGING with X/Y Extraction ---
-//             X = addr % width, Y = addr / width
-             $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | P: u=%h, v=%h w=%h", 
+            // --- LOGGING ---
+            // Note: Accessed via 'dut.stage4_shader.i_p_u' because signals are inside submodules now
+             $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | zbufdata=%h | P: u=%h, v=%h z=%h", 
                       $time, 
                       fb_addr, 
                       fb_addr % 320, // Extract X
                       fb_addr / 320, // Extract Y
                       fb_pixel, 
-                      dut.p_u, dut.p_v, dut.p_w
+                      dut.stage4_shader.i_zb_cur_val,
+                      dut.stage4_shader.i_p_u, 
+                      dut.stage4_shader.i_p_v,
+                      dut.stage4_shader.i_p_z
              );
         end
 
-        // Z-Buffer Write
+        // Z-Buffer Write (Using same WRITE address from Stage 4)
         if (zb_we) begin
-            z_buffer[zb_addr] <= zb_write_data;
+            z_buffer[zb_w_addr] <= zb_write_data;
         end
-        
-        // Z-Buffer Read
-        zb_read_data <= z_buffer[zb_addr];
     end
 
     // =========================================================================
@@ -116,28 +134,27 @@ module rasterizer_tb;
         // Clear Memory (Black background)
         for (i=0; i<76800; i=i+1) begin
             frame_buffer[i] = 12'h000; 
-            z_buffer[i] = 8'hFF; // Far plane
+            // z_buffer[i] = 8'hFF; // Far plane
+            z_buffer[i] = {4'hF, i[3:0]}; // Gradient for testing
         end
         
         #100;
         rst = 0;
         #20;
 
-        // --- Send Triangle with DEBUG UVs ---
-        
-        // Vertex 0 (Top) -> make it RED (U=1, V=0)
+        // --- Send Triangle ---
+        // Vertex 0 (Top) -> RED
         x0 = 160; y0 = 110; z0 = 50; 
-        u0 = 32'h00010000; v0 = 0;       // U=1.0
+        u0 = 32'h00010000; v0 = 0;       
 
-        // Vertex 1 (Bottom Left) -> make it GREEN (U=0, V=1)
+        // Vertex 1 (Bottom Left) -> GREEN
         x1 = 150; y1 = 130; z1 = 50; 
-        u1 = 0; v1 = 32'h00010000;       // V=1.0
+        u1 = 0; v1 = 32'h00010000;       
 
-        // Vertex 2 (Bottom Right) -> make it BLUE (U=0, V=0)
-        // Since Blue is calculated as (1 - U - V), if U=0 and V=0, Blue = 1.
+        // Vertex 2 (Bottom Right) -> BLUE
         x2 = 170; y2 = 130; z2 = 50; 
-        u2 = 0; v2 = 0;                  // U=0, V=0
-
+        u2 = 0; v2 = 0;           
+               
 //         // Vertex 0 (Top Center) -> RED (U=1, V=0)
 //         x0 = 160; y0 = 10;  z0 = 50; 
 //         u0 = 32'h00010000; v0 = 0;       
@@ -189,9 +206,6 @@ module rasterizer_tb;
         
         $fclose(fd);
         $display("Image saved to output.ppm");
-//        $display("dz_dx: %h, dz_dy: %h", dut.dz_dx, dut.dz_dy);
-//        $display("du_dx: %h, du_dy: %h", dut.du_dx, dut.du_dy);
-//        $display("dv_dx: %h, dv_dy: %h", dut.dv_dx, dut.dv_dy);
         $finish;
     end
 

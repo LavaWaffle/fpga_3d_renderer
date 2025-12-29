@@ -106,13 +106,21 @@ module fpga_top(
         .o_fb_pixel(rast_fb_pixel),
         
         // Z-Buffer Interface
-        .o_zb_addr(rast_zb_addr),
-        .i_zb_data(rast_i_zb_o_data),
-        .o_zb_we(rast_zb_we),
-        .o_zb_data(rast_o_zb_i_data)
+        .o_zb_r_addr(rast_zb_addr),
+        .i_zb_r_data(rast_i_zb_o_data),
+        .o_zb_w_addr(),
+        .o_zb_w_we(rast_zb_we),
+        .o_zb_w_data(rast_o_zb_i_data)
     );
 
     always_ff @(posedge clk) begin
-        dummy_led <= x0[0] ^ x1[0] ^ x2[0] ^ rasterizer_instance.p_u[0] ^ rasterizer_instance.p_v[0] ^ rasterizer_instance.p_w[0];
+        // Unary XOR (^) before a vector reduces all its bits to 1 bit.
+        // We include EVERYTHING: Pixel color, Write Enables, Addresses, and Z-data.
+        dummy_led <= x0[0] 
+                     ^ (^rast_fb_pixel)   // Vital: Keeps Interpolator alive
+                     ^ (^rast_fb_addr)    // Vital: Keeps Address generator alive
+                     ^ rast_fb_we         
+                     ^ rast_zb_we 
+                     ^ (^rasterizer_instance.stage4_shader.b_val); // Vital: Checks ALL bits of Z, not just LSB
     end
 endmodule
