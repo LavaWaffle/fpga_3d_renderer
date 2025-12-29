@@ -134,8 +134,8 @@ module rasterizer_tb;
         // Clear Memory (Black background)
         for (i=0; i<76800; i=i+1) begin
             frame_buffer[i] = 12'h000; 
-            // z_buffer[i] = 8'hFF; // Far plane
-            z_buffer[i] = {4'hF, i[3:0]}; // Gradient for testing
+             z_buffer[i] = 8'hFF; // Far plane
+//            z_buffer[i] = 8'h83; // Gradient for testing
         end
         
         #100;
@@ -143,29 +143,33 @@ module rasterizer_tb;
         #20;
 
         // --- Send Triangle ---
-        // Vertex 0 (Top) -> RED
-        x0 = 160; y0 = 110; z0 = 50; 
-        u0 = 32'h00010000; v0 = 0;       
+//        // Vertex 0 (Top) -> RED
+//        x0 = 160; y0 = 110; z0 = 50; 
+//        u0 = 32'h00010000; v0 = 0;       
 
-        // Vertex 1 (Bottom Left) -> GREEN
-        x1 = 150; y1 = 130; z1 = 50; 
-        u1 = 0; v1 = 32'h00010000;       
+//        // Vertex 1 (Bottom Left) -> GREEN
+//        x1 = 150; y1 = 130; z1 = 50; 
+//        u1 = 0; v1 = 32'h00010000;       
 
-        // Vertex 2 (Bottom Right) -> BLUE
-        x2 = 170; y2 = 130; z2 = 50; 
-        u2 = 0; v2 = 0;           
+//        // Vertex 2 (Bottom Right) -> BLUE
+//        x2 = 170; y2 = 130; z2 = 50; 
+//        u2 = 0; v2 = 0;           
                
-//         // Vertex 0 (Top Center) -> RED (U=1, V=0)
-//         x0 = 160; y0 = 10;  z0 = 50; 
-//         u0 = 32'h00010000; v0 = 0;       
-
-//         // Vertex 1 (Bottom Left) -> GREEN (U=0, V=1)
-//         x1 = 50;  y1 = 230; z1 = 50; 
-//         u1 = 0; v1 = 32'h00010000;       
-
-//         // Vertex 2 (Bottom Right) -> BLUE (U=0, V=0)
-//         x2 = 270; y2 = 230; z2 = 50; 
-//         u2 = 0; v2 = 0;
+         // Vertex 0 (Top Center) -> RED (U=1, V=0)
+         // Vertex 0 (Top Center) -> RED (U=1, V=0)
+            x0 = 148; y0 = 105;  z0 = 243;
+            u0 = 0; v0 = 0;
+    
+            // SWAPPED Vertex 2 into Slot 1
+            // Vertex 1 (Bottom Right)
+            x1 = 172; y1 = 125; z1 = 241; 
+            u1 = 0; v1 = 32'h00010000;  
+    
+            // SWAPPED Vertex 1 into Slot 2
+            // Vertex 2 (Top Right - originally V1)
+            x2 = 171;  y2 = 105; z2 = 243; 
+            u2 = 32'h00010000; v2 = 0;
+             
 
         $display("Sending Triangle...");
         
@@ -206,6 +210,8 @@ module rasterizer_tb;
         
         $fclose(fd);
         $display("Image saved to output.ppm");
+        $display("Min x: %0d, Max x: %0d", dut.min_x, dut.max_x);
+        $display("Min y: %0d, Max y: %0d", dut.min_y, dut.max_y);
         $finish;
     end
 

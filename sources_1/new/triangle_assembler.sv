@@ -96,10 +96,10 @@ module triangle_assembler(
                 end
 
                 READ_V2: begin
-                    // Capture logic for V2
+                    // Capture logic for V2 (Swapping tri 1 and 2 to make it work for CCW input)
                     o_x0 <= v0_x; o_y0 <= v0_y; o_z0 <= v0_z; o_u0 <= v0_u; o_v0 <= v0_v;
-                    o_x1 <= v1_x; o_y1 <= v1_y; o_z1 <= v1_z; o_u1 <= v1_u; o_v1 <= v1_v;
-                    o_x2 <= in_x; o_y2 <= in_y; o_z2 <= in_z; o_u2 <= in_u; o_v2 <= in_v;
+                    o_x2 <= v1_x; o_y2 <= v1_y; o_z2 <= v1_z; o_u2 <= v1_u; o_v2 <= v1_v;
+                    o_x1 <= in_x; o_y1 <= in_y; o_z1 <= in_z; o_u1 <= in_u; o_v1 <= in_v;
 
                     state <= CULL_CHECK;
                 end
@@ -118,8 +118,8 @@ module triangle_assembler(
                     
                     cross_prod = (vec0_x * vec1_y) - (vec1_x * vec0_y);
 
-                    // If Positive, it's visible.
-                    if (cross_prod > 0) begin
+                    // If Neg, it's visible.
+                    if (cross_prod < 0) begin
                         state <= OUTPUT_TRI;
                     end else begin
                         // Discard and restart

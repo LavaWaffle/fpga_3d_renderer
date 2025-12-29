@@ -3,6 +3,9 @@
 module fpga_top(
     input wire clk,
     input wire rst_n,
+
+    input wire start,
+
     output reg dummy_led
     );
 
@@ -16,6 +19,9 @@ module fpga_top(
     geometry_engine gem_engine (
         .i_clk (clk),
         .i_rst (rst),
+
+        .i_start(start),
+        .i_vertex_fifo_full(fifo_full),
 
         .o_vertex_valid(geo_valid),
         .o_x(geo_x), .o_y(geo_y),

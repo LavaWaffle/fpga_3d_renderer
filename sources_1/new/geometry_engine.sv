@@ -4,6 +4,9 @@ module geometry_engine (
     input i_clk,
     input i_rst,
 
+    input wire       i_start,
+    input wire       i_vertex_fifo_full,
+
     // OUTPUTS TO FIFO
     output reg        o_vertex_valid, 
     output reg [31:0] o_x, o_y,
@@ -28,6 +31,7 @@ module geometry_engine (
 
     // Geometry Engine State Machine
     typedef enum {
+        S_IDLE,
         S_VERTEX_FETCH,
         S_MATRIX_TRANSFORM,
         S_PERSP_DIVIDE,
@@ -45,10 +49,10 @@ module geometry_engine (
 
     // Model-View-Projection Matrix 
     logic signed [31:0] MVP_MATRIX [0:15] = '{
-        32'h0000C000, 32'h00000000, 32'h00000000, 32'h00000000,
-        32'h00000000, 32'h0000E4F9, 32'hFFFF8D84, 32'h00000000,
-        32'h00000000, 32'hFFFF8177, 32'hFFFF02ED, 32'h000A4080, 
-        32'h00000000, 32'hFFFF8D84, 32'hFFFF1B07, 32'h000B2E2A 
+        32'h0000C000, 32'h00000000, 32'h00000000, 32'h00000000, 
+        32'h00000000, 32'h00010000, 32'h00000000, 32'h00000000, 
+        32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286, 
+        32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
     };
     
     reg signed [31:0] x_clip_i, y_clip_i, z_clip_i, w_clip_i;
@@ -104,7 +108,7 @@ module geometry_engine (
 
     always_ff @(posedge i_clk) begin
         if (i_rst) begin
-            state_i <= S_VERTEX_FETCH;
+            state_i <= S_IDLE;
             vertex_addr_i <= 0;
             vertex_count_i <= 0;
             o_vertex_valid <= 0;
@@ -118,6 +122,13 @@ module geometry_engine (
             o_vertex_valid <= 0;
 
             case (state_i)
+                S_IDLE: begin
+                    if (i_start && !i_vertex_fifo_full) begin
+                        vertex_addr_i <= 0;
+                        vertex_count_i <= 0;
+                        state_i <= S_VERTEX_FETCH;
+                    end
+                end
                 S_VERTEX_FETCH: begin
                     // Start at 1 to give clk cycle for RAM read
                     if (vertex_count_i == 1) x_local_i <= vertex_data_i;
@@ -127,7 +138,19 @@ module geometry_engine (
                     else if (vertex_count_i == 5) begin
                         v_local_i <= vertex_data_i;
                         vertex_count_i <= 0;
-                        state_i <= S_MATRIX_TRANSFORM;
+                        
+                        // Check for End of Stream Signal
+                        if (
+                            x_local_i == 32'hFFFFFFFF &&
+                            y_local_i == 32'hFFFFFFFF &&
+                            z_local_i == 32'hFFFFFFFF &&
+                            u_local_i == 32'hFFFFFFFF &&
+                            vertex_data_i == 32'hFFFFFFFF 
+                        ) begin 
+                            state_i <= S_IDLE;
+                        end else begin 
+                            state_i <= S_MATRIX_TRANSFORM;
+                        end
                     end
     
                     // Handle Addressing
