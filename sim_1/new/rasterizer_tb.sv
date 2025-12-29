@@ -72,14 +72,13 @@ module rasterizer_tb;
             
             // --- NEW LOGGING with X/Y Extraction ---
 //             X = addr % width, Y = addr / width
-             $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | Row: u=%h, v=%h | P: u=%h, v=%h", 
+             $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | P: u=%h, v=%h w=%h", 
                       $time, 
                       fb_addr, 
                       fb_addr % 320, // Extract X
                       fb_addr / 320, // Extract Y
                       fb_pixel, 
-                      dut.row_u, dut.row_v, 
-                      dut.p_u, dut.p_v
+                      dut.p_u, dut.p_v, dut.p_w
              );
         end
 
@@ -139,17 +138,17 @@ module rasterizer_tb;
         x2 = 170; y2 = 130; z2 = 50; 
         u2 = 0; v2 = 0;                  // U=0, V=0
 
-        // // Vertex 0 (Top Center) -> RED (U=1, V=0)
-        // x0 = 160; y0 = 10;  z0 = 50; 
-        // u0 = 32'h00010000; v0 = 0;       
+//         // Vertex 0 (Top Center) -> RED (U=1, V=0)
+//         x0 = 160; y0 = 10;  z0 = 50; 
+//         u0 = 32'h00010000; v0 = 0;       
 
-        // // Vertex 1 (Bottom Left) -> GREEN (U=0, V=1)
-        // x1 = 50;  y1 = 230; z1 = 50; 
-        // u1 = 0; v1 = 32'h00010000;       
+//         // Vertex 1 (Bottom Left) -> GREEN (U=0, V=1)
+//         x1 = 50;  y1 = 230; z1 = 50; 
+//         u1 = 0; v1 = 32'h00010000;       
 
-        // // Vertex 2 (Bottom Right) -> BLUE (U=0, V=0)
-        // x2 = 270; y2 = 230; z2 = 50; 
-        // u2 = 0; v2 = 0;
+//         // Vertex 2 (Bottom Right) -> BLUE (U=0, V=0)
+//         x2 = 270; y2 = 230; z2 = 50; 
+//         u2 = 0; v2 = 0;
 
         $display("Sending Triangle...");
         
@@ -190,9 +189,9 @@ module rasterizer_tb;
         
         $fclose(fd);
         $display("Image saved to output.ppm");
-        $display("dz_dx: %h, dz_dy: %h", dut.dz_dx, dut.dz_dy);
-        $display("du_dx: %h, du_dy: %h", dut.du_dx, dut.du_dy);
-        $display("dv_dx: %h, dv_dy: %h", dut.dv_dx, dut.dv_dy);
+//        $display("dz_dx: %h, dz_dy: %h", dut.dz_dx, dut.dz_dy);
+//        $display("du_dx: %h, du_dy: %h", dut.du_dx, dut.du_dy);
+//        $display("dv_dx: %h, dv_dy: %h", dut.dv_dx, dut.dv_dy);
         $finish;
     end
 
