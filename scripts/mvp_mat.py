@@ -7,22 +7,55 @@
 
 import numpy as np
 
-# --- (Your Helper Functions: create_model_matrix, look_at, perspective remain exactly the same) ---
-def create_model_matrix(position, scale, rotation_euler):
+# ==============================================================================
+# 1. MATHEMATICAL HELPERS
+# ==============================================================================
+
+def get_rotation_matrix(axis, radians):
+    """Generates a 4x4 rotation matrix for X, Y, or Z axis."""
+    c = np.cos(radians)
+    s = np.sin(radians)
+    
+    if axis.upper() == 'X':
+        return np.array([
+            [1, 0, 0, 0],
+            [0, c, -s, 0],
+            [0, s, c, 0],
+            [0, 0, 0, 1]
+        ], dtype=np.float32)
+    elif axis.upper() == 'Y':
+        return np.array([
+            [ c, 0, s, 0],
+            [ 0, 1, 0, 0],
+            [-s, 0, c, 0],
+            [ 0, 0, 0, 1]
+        ], dtype=np.float32)
+    elif axis.upper() == 'Z':
+        return np.array([
+            [c, -s, 0, 0],
+            [s, c, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1]
+        ], dtype=np.float32)
+    else:
+        return np.eye(4, dtype=np.float32)
+
+def create_model_matrix(position, scale, rotation_matrix):
     tx, ty, tz = position
     sx, sy, sz = scale
-    rz = rotation_euler[2] 
-    c = np.cos(rz)
-    s = np.sin(rz)
-    rs_mat = np.array([
-        [sx*c, -sy*s, 0, 0],
-        [sx*s,  sy*c, 0, 0],
-        [   0,     0, sz, 0],
-        [   0,     0,  0, 1]
-    ], dtype=np.float32)
-    t_mat = np.eye(4, dtype=np.float32)
-    t_mat[:3, 3] = [tx, ty, tz]
-    return t_mat @ rs_mat
+    
+    # Scale Matrix
+    scale_mat = np.eye(4, dtype=np.float32)
+    scale_mat[0,0] = sx
+    scale_mat[1,1] = sy
+    scale_mat[2,2] = sz
+    
+    # Translation Matrix
+    trans_mat = np.eye(4, dtype=np.float32)
+    trans_mat[:3, 3] = [tx, ty, tz]
+    
+    # Order: T * R * S
+    return trans_mat @ rotation_matrix @ scale_mat
 
 def look_at(eye, target, up):
     eye = np.array(eye, dtype=np.float32)
@@ -53,79 +86,107 @@ def perspective(fov_degrees, aspect_ratio, near, far):
         [0, 0, -1, 0]
     ], dtype=np.float32)
 
-# --- NEW: Fixed Point Converter ---
+# ==============================================================================
+# 2. OUTPUT FORMATTER (Q16.16)
+# ==============================================================================
+
 def float_to_q16_16_hex(val):
     # Scale by 65536 (2^16)
     fixed_val = int(val * 65536.0)
-    # Handle negative numbers (Two's complement for 32-bit)
     if fixed_val < 0:
         fixed_val = (1 << 32) + fixed_val
-    # Return as hex string
-    return f"32'h{fixed_val:08X}"
+    return f"32'h{fixed_val & 0xFFFFFFFF:08X}"
 
-def print_verilog_matrix(mat):
-    print("\n// ==========================================")
-    print("// SystemVerilog Fixed Point Matrix (Q16.16)")
-    print("// ==========================================")
-    print("logic signed [31:0] MVP_MATRIX [0:15] = '{")
+def print_combined_verilog_array(all_frames_data):
+    num_frames = len(all_frames_data)
     
-    rows = ["X", "Y", "Z", "W"]
+    print(f"\n// ==========================================")
+    print(f"// ANIMATION DATA: {num_frames} FRAMES")
+    print(f"// Access: MVP_FRAMES[frame_index][matrix_element_index]")
+    print(f"// ==========================================")
     
-    for r in range(4):
-        line_vals = []
-        for c in range(4):
-            line_vals.append(float_to_q16_16_hex(mat[r, c]))
+    # Declare 2D array: [Number of Frames][16 Elements per matrix]
+    print(f"logic signed [31:0] MVP_FRAMES [0:{num_frames-1}][0:15] = '{{")
+    
+    for i, frame_hex_list in enumerate(all_frames_data):
+        print(f"    // Frame {i}")
+        print("    '{")
         
-        # Formatting specifically to show the dot product relationship
-        comment = f"// Row {r} (Calculates {rows[r]}_out): Multiply with {{Vx, Vy, Vz, Vw}}"
-        print(f"    {', '.join(line_vals)}, {comment}")
+        # Print 4 rows of 4 elements for readability
+        for r in range(4):
+            row_start = r * 4
+            row_end   = row_start + 4
+            row_vals  = frame_hex_list[row_start : row_end]
+            
+            # Formatting
+            line_str = ", ".join(row_vals)
+            
+            # Add comma if this isn't the very last row of the very last frame
+            # But inside a SystemVerilog array literal, every element needs a comma except the last
+            
+            suffix = "," # Comma after every row for internal array structure
+            if r == 3: suffix = "" # No comma at end of the 'frame' block internally
+            
+            print(f"        {line_str}{suffix}")
+            
+        # Close the frame block
+        closer = "},"
+        if i == num_frames - 1:
+            closer = "}" # No comma after the last frame
+            
+        print(f"    {closer}")
 
     print("};")
-    print("// Access pattern: MVP_MATRIX[row*4 + col]")
-
-def print_mat(name, mat):
-    print(f"\n--- {name} Matrix ---")
-    # Clean formatting: 3 decimal places, suppress scientific notation, align columns
-    with np.printoptions(precision=3, suppress=True, linewidth=100, formatter={'float': '{: 8.3f}'.format}):
-        print(mat) 
 
 # ==============================================================================
-# CONFIGURATION
+# 3. MAIN CONFIGURATION & LOOP
 # ==============================================================================
 if __name__ == "__main__":
-    # 1. SCREEN SETTINGS
+    
+    # --- ANIMATION SETTINGS ---
+    NUM_FRAMES         = 12
+    ROTATION_AXIS      = 'Y'   # 'X', 'Y', or 'Z'
+    TOTAL_TURN_DEGREES = 360.0 
+
+    # --- STANDARD SETTINGS ---
     FOV_DEGREES  = 90.0
-    ASPECT_RATIO = 320.0 / 240.0 # Match your hardware resolution!
+    ASPECT_RATIO = 320.0 / 240.0 
     NEAR_PLANE   = 1.0
     FAR_PLANE    = 20.0
 
-    # 2. CAMERA SETTINGS
     CAM_POS    = [0.0, 0.0, 10.0]
     CAM_TARGET = [0.0, 0.0, 0.0]
     CAM_UP     = [0.0, 1.0, 0.0]
 
-    # 3. OBJECT SETTINGS
-    OBJ_POS    = [0.0, 0.0, 0.0] # Centered
-    OBJ_SCALE  = [1.0, 1.0, 1.0] # No scaling
-    # OBJ_ROT    = [0.0, 0.0, np.radians(45)]
-    OBJ_ROT    = [0.0, 0.0, 0.0] # No rotation
+    OBJ_POS    = [0.0, 0.0, 0.0] 
+    OBJ_SCALE  = [1.0, 1.0, 1.0]
 
-    # CALCULATION
-    model_mat = create_model_matrix(OBJ_POS, OBJ_SCALE, OBJ_ROT)
-    view_mat  = look_at(CAM_POS, CAM_TARGET, CAM_UP)
-    proj_mat  = perspective(FOV_DEGREES, ASPECT_RATIO, NEAR_PLANE, FAR_PLANE)
+    # --- PRE-CALCULATE STATIC MATRICES ---
+    view_mat = look_at(CAM_POS, CAM_TARGET, CAM_UP)
+    proj_mat = perspective(FOV_DEGREES, ASPECT_RATIO, NEAR_PLANE, FAR_PLANE)
+    vp_mat   = proj_mat @ view_mat
 
-    mvp_mat = proj_mat @ view_mat @ model_mat
-    
-    print_mat("Model", model_mat)
+    # --- STORAGE FOR FINAL PRINT ---
+    all_frames_hex = []
 
-    print_mat("View", view_mat)
+    # --- GENERATION LOOP ---
+    for i in range(NUM_FRAMES):
+        # Calculate angle
+        deg = (i / NUM_FRAMES) * TOTAL_TURN_DEGREES
+        rad = np.radians(deg)
+        
+        # Calculate MVP
+        rot_mat = get_rotation_matrix(ROTATION_AXIS, rad)
+        model_mat = create_model_matrix(OBJ_POS, OBJ_SCALE, rot_mat)
+        mvp_mat = vp_mat @ model_mat
+        
+        # Flatten and Convert to Hex
+        frame_hex = []
+        for r in range(4):
+            for c in range(4):
+                frame_hex.append(float_to_q16_16_hex(mvp_mat[r, c]))
+        
+        all_frames_hex.append(frame_hex)
 
-    print_mat("Projection", proj_mat)
-
-    print_mat("Final MVP", mvp_mat) 
-
-
-
-    # Generate the Verilog code
-    print_verilog_matrix(mvp_mat)
+    # --- FINAL OUTPUT ---
+    print_combined_verilog_array(all_frames_hex)
