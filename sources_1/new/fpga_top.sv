@@ -2,9 +2,11 @@
 
 module fpga_top(
     input wire clk,
-    input wire rst,
+    input wire rst_n,
     output reg dummy_led
     );
+
+    wire rst = !rst_n;
 
     wire [31:0] geo_x, geo_y, geo_u, geo_v;
     wire [7:0]  geo_z;
@@ -76,7 +78,10 @@ module fpga_top(
     wire        rast_fb_we;   // Write Enable for Framebuffer
     wire [11:0] rast_fb_pixel; // 12-bit Color 
 
-    
+    wire [16:0] rast_zb_addr;
+    wire        rast_zb_we;
+    wire [7:0]  rast_o_zb_i_data;
+    wire [7:0]  rast_i_zb_o_data;
 
     rasterizer rasterizer_instance (
         .i_clk(clk),
@@ -101,13 +106,13 @@ module fpga_top(
         .o_fb_pixel(rast_fb_pixel),
         
         // Z-Buffer Interface
-        .o_zb_addr(o_zb_addr),
-        .i_zb_data(i_zb_data),
-        .o_zb_we(o_zb_we),
-        .o_zb_data(o_zb_data)
+        .o_zb_addr(rast_zb_addr),
+        .i_zb_data(rast_i_zb_o_data),
+        .o_zb_we(rast_zb_we),
+        .o_zb_data(rast_o_zb_i_data)
     );
 
     always_ff @(posedge clk) begin
-        dummy_led <= x0[0] ^ x1[0] ^ x2[0];
+        dummy_led <= x0[0] ^ x1[0] ^ x2[0] ^ rasterizer_instance.p_u[0] ^ rasterizer_instance.p_v[0] ^ rasterizer_instance.p_w[0];
     end
 endmodule
