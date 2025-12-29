@@ -145,7 +145,7 @@ if __name__ == "__main__":
     
     # --- ANIMATION SETTINGS ---
     NUM_FRAMES         = 16
-    ROTATION_AXIS      = 'Z'   # 'X', 'Y', or 'Z'
+    ROTATION_AXIS      = 'Y'   # 'X', 'Y', or 'Z'
     TOTAL_TURN_DEGREES = 360.0
 
     # --- STANDARD SETTINGS ---

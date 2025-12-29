@@ -24,7 +24,7 @@ mvp_matrix = np.array([
     [   0.000,    0.000,   -1.105,    8.947],
     [   0.000,    0.000,   -1.000,   10.000]], dtype=np.float32)
 
-TRI_SCALE = 0.5  # 0.5 = Half Size
+TRI_SCALE = 0.3  # 0.5 = Half Size
 base_h = 10.0
 base_w = 13.333
 
