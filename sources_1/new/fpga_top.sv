@@ -5,6 +5,7 @@ module fpga_top(
     input wire rst_n,
 
     input wire start,
+    input wire increment_frame,
 
     output reg dummy_led
     );
@@ -21,6 +22,7 @@ module fpga_top(
         .i_rst (rst),
 
         .i_start(start),
+        .i_increment_frame(increment_frame),
         .i_vertex_fifo_full(fifo_full),
 
         .o_vertex_valid(geo_valid),

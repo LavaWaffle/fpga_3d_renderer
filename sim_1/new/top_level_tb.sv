@@ -24,12 +24,14 @@ module top_level_tb;
     reg clk;
     reg rst;
     reg start;
+    reg increment_frame;
 
     // Instantiate the DUT
     fpga_top dut (
         .clk(clk),
         .rst_n(!rst),
         .start(start),
+        .increment_frame(increment_frame),
         .dummy_led()
     );
 
@@ -194,17 +196,17 @@ module top_level_tb;
             
             // --- LOGGING ---
             // Note: Accessed via 'dut.stage4_shader.i_p_u' because signals are inside submodules now
-             $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | zbufdata=%h | P: u=%h, v=%h z=%h", 
-                      $time, 
-                      fb_addr, 
-                      fb_addr % 320, // Extract X
-                      fb_addr / 320, // Extract Y
-                      fb_pixel, 
-                      dut.rasterizer_instance.stage4_shader.i_zb_cur_val,
-                      dut.rasterizer_instance.stage4_shader.i_p_u, 
-                      dut.rasterizer_instance.stage4_shader.i_p_v,
-                      dut.rasterizer_instance.stage4_shader.i_p_z
-             );
+//             $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | zbufdata=%h | P: u=%h, v=%h z=%h", 
+//                      $time, 
+//                      fb_addr, 
+//                      fb_addr % 320, // Extract X
+//                      fb_addr / 320, // Extract Y
+//                      fb_pixel, 
+//                      dut.rasterizer_instance.stage4_shader.i_zb_cur_val,
+//                      dut.rasterizer_instance.stage4_shader.i_p_u, 
+//                      dut.rasterizer_instance.stage4_shader.i_p_v,
+//                      dut.rasterizer_instance.stage4_shader.i_p_z
+//             );
         end
 
         // Z-Buffer Write (Using same WRITE address from Stage 4)
@@ -216,7 +218,9 @@ module top_level_tb;
     integer i, fd;
     integer x, y, idx;
 
-
+    integer frame_count;
+    string filename;
+    integer fc_i;
     initial begin
         $display("--- SIMULATION START ---");
 
@@ -229,54 +233,97 @@ module top_level_tb;
         // Load data directly into the BRAM instance inside DUT
         $readmemh("vertex_data.mem", dut.gem_engine.vertex_ram.ram);
 
-        // 2. Reset
-        rst = 1;
-        
-        // Clear Memory (Black background)
-        for (i=0; i<76800; i=i+1) begin
-            frame_buffer[i] = 12'h000; 
-            z_buffer[i] = 8'hFF; // Far plane
-        end
+        for (frame_count = 0; frame_count < 16; frame_count = frame_count + 1) begin
+            $display("\n\n\n---------------------------------");
+            $display("FRAME %0d", frame_count);
+            $display("---------------------------------\n\n\n");
 
-        #100;
-        rst = 0;
-        #100;
-
-        start = 1;
-        @(posedge clk);
-        @(posedge clk);
-        @(posedge clk);
-        @(posedge clk);
-        start = 0;
-
-        @(posedge clk);
-        wait(dut.rasterizer_instance.o_busy == 1);
-        $display("Rasterizer Busy Started at time %t", $time);
-        wait(dut.rasterizer_instance.o_busy == 0);
-        $display("Rasterizer Busy Ended at time %t", $time);
-
-        // Dump Frame Buffer to PPM file
-        fd = $fopen("output_image.ppm", "w");
-        $fwrite(fd, "P3\n320 240\n15\n"); // PPM Header
-        
-        for (y = 0; y < 240; y = y + 1) begin
-            for (x = 0; x < 320; x = x + 1) begin
-                // FLIP Y MODIFICATION:
-                // Instead of y * 320, we read from (239 - y) * 320.
-                // This writes the last row of the buffer to the first row of the file.
-                idx = (239 - y) * 320 + x;
-                
-                $fwrite(fd, "%0d %0d %0d ", 
-                        frame_buffer[idx][11:8], 
-                        frame_buffer[idx][7:4], 
-                        frame_buffer[idx][3:0]);
+            // 2. Reset
+            rst = 1;
+            increment_frame = 0;
+            
+            // Clear Memory (Black background)
+            for (i=0; i<76800; i=i+1) begin
+                frame_buffer[i] = 12'h000; 
+                z_buffer[i] = 8'hFF; // Far plane
             end
-            $fwrite(fd, "\n");
+
+            #100;
+            rst = 0;
+            #100;
+
+            for (fc_i = 0; fc_i < frame_count; fc_i = fc_i + 1) begin
+                increment_frame = 1;
+                @(posedge clk);
+                @(posedge clk);
+                @(posedge clk);
+                @(posedge clk);
+                increment_frame = 0;
+                @(posedge clk);
+                @(posedge clk);
+                @(posedge clk);
+                @(posedge clk);
+            end
+
+            start = 1;
+            @(posedge clk);
+            @(posedge clk);
+            @(posedge clk);
+            @(posedge clk);
+            start = 0;
+
+            // Name the block so we can target it with disable
+            fork : wait_for_rasterizer
+                begin
+                    // OPTIONAL: Ensure signal is low first to catch a FRESH rising edge
+                    // wait(dut.rasterizer_instance.o_busy == 0); 
+                    
+                    // Wait for it to become busy
+                    wait(dut.rasterizer_instance.o_busy == 1);
+                    $display("Rasterizer Busy Started at time %t", $time);
+                    
+                    // Wait for it to finish
+                    wait(dut.rasterizer_instance.o_busy == 0);
+                    $display("Rasterizer Busy Ended at time %t", $time);
+                end
+                begin
+                    // Corrected to match comment (or change comment to 250)
+                    #(500us); 
+                    $error("TIMEOUT: Rasterizer took too long to finish!");
+                end
+            join_any
+            
+            // CRITICAL: Kill the thread that didn't finish (the zombie)
+            disable wait_for_rasterizer;
+                
+
+            // Dump Frame Buffer to PPM file
+            filename = $sformatf("output_image-%02d.ppm", frame_count);
+            fd = $fopen(filename, "w");
+            $fwrite(fd, "P3\n320 240\n15\n"); // PPM Header
+            
+            for (y = 0; y < 240; y = y + 1) begin
+                for (x = 0; x < 320; x = x + 1) begin
+                    // FLIP Y MODIFICATION:
+                    // Instead of y * 320, we read from (239 - y) * 320.
+                    // This writes the last row of the buffer to the first row of the file.
+                    idx = (239 - y) * 320 + x;
+                    
+                    $fwrite(fd, "%0d %0d %0d ", 
+                            frame_buffer[idx][11:8], 
+                            frame_buffer[idx][7:4], 
+                            frame_buffer[idx][3:0]);
+                end
+                $fwrite(fd, "\n");
+            end
+
+            $fclose(fd);
+            // $display("Output image written to output_image.ppm");
+            $display("Output image written to %s", filename);
+            #100;
+
         end
 
-        $fclose(fd);
-        $display("Output image written to output_image.ppm");
-        #100;
         $display("--- SIMULATION END ---");
         $finish;
     end

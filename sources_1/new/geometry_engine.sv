@@ -5,6 +5,7 @@ module geometry_engine (
     input i_rst,
 
     input wire       i_start,
+    input wire       i_increment_frame,
     input wire       i_vertex_fifo_full,
 
     // OUTPUTS TO FIFO
@@ -47,13 +48,129 @@ module geometry_engine (
     assign o_u = u_local_i;
     assign o_v = v_local_i;
 
-    // Model-View-Projection Matrix 
-    logic signed [31:0] MVP_MATRIX [0:15] = '{
-        32'h0000C000, 32'h00000000, 32'h00000000, 32'h00000000, 
-        32'h00000000, 32'h00010000, 32'h00000000, 32'h00000000, 
-        32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286, 
-        32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+    reg [3:0] mvp_frame_count_i;
+
+   // ==========================================
+    // ANIMATION DATA: 16 FRAMES
+    // Access: MVP_FRAMES[frame_index][matrix_element_index]
+    // ==========================================
+    logic signed [31:0] MVP_FRAMES [0:15][0:15] = '{
+        // Frame 0
+        '{
+            32'h0000C000, 32'h00000000, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00010000, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 1
+        '{
+            32'h0000B162, 32'hFFFFB687, 32'h00000000, 32'h00000000,
+            32'h000061F7, 32'h0000EC83, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 2
+        '{
+            32'h000087C3, 32'hFFFF783D, 32'h00000000, 32'h00000000,
+            32'h0000B504, 32'h0000B504, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 3
+        '{
+            32'h00004979, 32'hFFFF4E9E, 32'h00000000, 32'h00000000,
+            32'h0000EC83, 32'h000061F7, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 4
+        '{
+            32'h00000000, 32'hFFFF4000, 32'h00000000, 32'h00000000,
+            32'h00010000, 32'h00000000, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 5
+        '{
+            32'hFFFFB687, 32'hFFFF4E9E, 32'h00000000, 32'h00000000,
+            32'h0000EC83, 32'hFFFF9E09, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 6
+        '{
+            32'hFFFF783D, 32'hFFFF783D, 32'h00000000, 32'h00000000,
+            32'h0000B504, 32'hFFFF4AFC, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 7
+        '{
+            32'hFFFF4E9E, 32'hFFFFB687, 32'h00000000, 32'h00000000,
+            32'h000061F7, 32'hFFFF137D, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 8
+        '{
+            32'hFFFF4000, 32'h00000000, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'hFFFF0000, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 9
+        '{
+            32'hFFFF4E9E, 32'h00004979, 32'h00000000, 32'h00000000,
+            32'hFFFF9E09, 32'hFFFF137D, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 10
+        '{
+            32'hFFFF783D, 32'h000087C3, 32'h00000000, 32'h00000000,
+            32'hFFFF4AFC, 32'hFFFF4AFC, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 11
+        '{
+            32'hFFFFB687, 32'h0000B162, 32'h00000000, 32'h00000000,
+            32'hFFFF137D, 32'hFFFF9E09, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 12
+        '{
+            32'h00000000, 32'h0000C000, 32'h00000000, 32'h00000000,
+            32'hFFFF0000, 32'h00000000, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 13
+        '{
+            32'h00004979, 32'h0000B162, 32'h00000000, 32'h00000000,
+            32'hFFFF137D, 32'h000061F7, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 14
+        '{
+            32'h000087C3, 32'h000087C3, 32'h00000000, 32'h00000000,
+            32'hFFFF4AFC, 32'h0000B504, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        },
+        // Frame 15
+        '{
+            32'h0000B162, 32'h00004979, 32'h00000000, 32'h00000000,
+            32'hFFFF9E09, 32'h0000EC83, 32'h00000000, 32'h00000000,
+            32'h00000000, 32'h00000000, 32'hFFFEE50E, 32'h0008F286,
+            32'h00000000, 32'h00000000, 32'hFFFF0000, 32'h000A0000
+        }
     };
+    
+    logic signed [31:0] MVP_MATRIX [0:15];
+    assign MVP_MATRIX = MVP_FRAMES[mvp_frame_count_i];
     
     reg signed [31:0] x_clip_i, y_clip_i, z_clip_i, w_clip_i;
     
@@ -106,9 +223,12 @@ module geometry_engine (
     assign o_y = y_screen;
     assign o_z = z_screen[23:16]; // 8-bit depth
 
+    reg prev_increment_frame_i;
+
     always_ff @(posedge i_clk) begin
         if (i_rst) begin
             state_i <= S_IDLE;
+            mvp_frame_count_i <= 0;
             vertex_addr_i <= 0;
             vertex_count_i <= 0;
             o_vertex_valid <= 0;
@@ -120,9 +240,18 @@ module geometry_engine (
         end else begin
             // Default to invalid
             o_vertex_valid <= 0;
+            prev_increment_frame_i <= i_increment_frame;
 
             case (state_i)
                 S_IDLE: begin
+                    // On falling edge of increment frame signal, increment frame count
+                    if (prev_increment_frame_i && !i_increment_frame) begin
+                        if (mvp_frame_count_i == 15) begin
+                            mvp_frame_count_i <= 0;
+                        end else begin 
+                            mvp_frame_count_i <= mvp_frame_count_i + 1;
+                        end
+                    end
                     if (i_start && !i_vertex_fifo_full) begin
                         vertex_addr_i <= 0;
                         vertex_count_i <= 0;
