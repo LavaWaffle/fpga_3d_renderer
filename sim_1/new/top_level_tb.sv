@@ -291,6 +291,15 @@ module top_level_tb;
                     #(250us); 
                     $error("TIMEOUT: Rasterizer took too long to finish!");
                 end
+                begin
+                    #(5us);
+                    wait (dut.rasterizer_instance.o_busy == 0);
+                    #(5us);
+                    wait (dut.rasterizer_instance.o_busy == 0);
+                    #(5us);
+                    wait (dut.rasterizer_instance.o_busy == 0);
+                    $display("No triangles to render %t", $time);
+                end
             join_any
             
             // CRITICAL: Kill the thread that didn't finish (the zombie)
