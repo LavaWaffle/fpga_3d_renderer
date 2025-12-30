@@ -27,7 +27,9 @@ module top_level_tb;
     reg increment_frame;
 
     // Instantiate the DUT
-    fpga_top dut (
+    fpga_top #(
+        .PIXEL_RESET_COUNT(10)
+    ) dut (
         .clk(clk),
         .rst_n(!rst),
         .start(start),
@@ -39,6 +41,26 @@ module top_level_tb;
     initial begin
         clk = 0;
         forever #5 clk = ~clk; // 10ns period
+    end
+
+    // Instant BRAM Clear on Reset (B/c of the whole pixel reset count = 10 thing)
+    always @(posedge clk) begin
+        // Detect when the DUT enters the reset state
+        if (dut.state == dut.T_RESETING_BUFFERS) begin
+            // Use hierarchical reference to force-write the internal BRAM arrays
+            // This happens in 0 simulation time!
+            
+            // Loop through the actual Verilog array variable inside the BRAM module
+            for (int i = 0; i < 76800; i++) begin
+                dut.frame_buffer.ram[i] = 12'h000;
+                dut.z_buffer.ram[i]     = 8'hFF;
+            end
+            
+            $display("TB INFO: Instantly cleared BRAMs via backdoor at time %t", $time);
+            
+            // Wait until the state exits so we don't clear repeatedly
+            wait(dut.state != dut.T_RESETING_BUFFERS);
+        end
     end
 
     // Monitors
@@ -157,71 +179,33 @@ module top_level_tb;
 
     integer vertex_idx;
 
-    // Frame Buffer Interface Rasterizer signals
-    // In Pipelined mode: This acts as the WRITE address for both FB and ZB
-    wire [16:0] fb_addr;
-    wire        fb_we;
-    wire [11:0] fb_pixel; // Format: 4R, 4G, 4B
-
-    // Z-Buffer Interface
-    // In Pipelined mode: This acts as the READ address (from Stage 1)
-    wire [16:0] zb_read_addr; 
-    reg  [7:0]  zb_read_data; // Input to DUT
-    wire [16:0] zb_w_addr;
-    wire        zb_we;
-    wire [7:0]  zb_write_data;
-
     // =========================================================================
     // 2. Memory Models (The "Virtual Screen")
     // =========================================================================
-    // 320x240 = 76,800 pixels
-    logic [11:0] frame_buffer [0:76799];
-    logic [7:0]  z_buffer     [0:76799];
-    
-    // wire up DUT framebuffer and zbuffer signals
-    assign fb_addr       = dut.rasterizer_instance.o_fb_addr;
-    assign fb_we         = dut.rasterizer_instance.o_fb_we;
-    assign fb_pixel      = dut.rasterizer_instance.o_fb_pixel;
-    
-    assign zb_read_addr  = dut.rasterizer_instance.o_zb_r_addr;
-    assign zb_w_addr     = dut.rasterizer_instance.o_zb_w_addr;
-    assign zb_we         = dut.rasterizer_instance.o_zb_w_we;
-    assign zb_write_data = dut.rasterizer_instance.o_zb_w_data;
-    assign dut.rasterizer_instance.i_zb_r_data = zb_read_data;
     
     always @(posedge clk) begin
-        // ---------------------------------------------------------------------
-        // PORT A: READ (Stage 1)
-        // ---------------------------------------------------------------------
-        // The pipeline requests data at 'zb_read_addr'. 
-        // We deliver it to 'zb_read_data' on the next edge (Synchronous Read).
-        zb_read_data <= z_buffer[zb_read_addr];
 
-        // ---------------------------------------------------------------------
-        // PORT B: WRITE (Stage 4)
-        // ---------------------------------------------------------------------
         // Frame Buffer Write
-        if (fb_we) begin
-            frame_buffer[fb_addr] <= fb_pixel;
-            
+        if (dut.fb_we) begin    
             // --- LOGGING ---
             // Note: Accessed via 'dut.stage4_shader.i_p_u' because signals are inside submodules now
             // $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | zbufdata=%h | P: u=%h, v=%h z=%h", 
             //          $time, 
-            //          fb_addr, 
-            //          fb_addr % 320, // Extract X
-            //          fb_addr / 320, // Extract Y
-            //          fb_pixel, 
+            //          dut.fb_addr, 
+            //          dut.fb_addr % 320, // Extract X
+            //          dut.fb_addr / 320, // Extract Y
+            //          dut.fb_pixel, 
             //          dut.rasterizer_instance.stage4_shader.i_zb_cur_val,
             //          dut.rasterizer_instance.stage4_shader.i_p_u, 
             //          dut.rasterizer_instance.stage4_shader.i_p_v,
             //          dut.rasterizer_instance.stage4_shader.i_p_z
             // );
         end
-
-        // Z-Buffer Write (Using same WRITE address from Stage 4)
-        if (zb_we) begin
-            z_buffer[zb_w_addr] <= zb_write_data;
+        if (dut.zb_we) begin
+            // $display("[ZB WRITE] Time: %0t | Addr: %0d | Data: %0d", 
+            //          $time, 
+            //          dut.zb_w_addr, 
+            //          dut.zb_w_data);
         end
     end
 
@@ -243,6 +227,19 @@ module top_level_tb;
         // Load data directly into the BRAM instance inside DUT
         $readmemh("vertex_data.mem", dut.gem_engine.vertex_ram.ram);
 
+        // Load buffers
+        if ($fopen("frame_buffer_init.mem", "r") == 0) begin
+            $display("WARNING: frame_buffer.mem not found, starting with empty frame buffer.");
+        end else begin
+            $readmemh("frame_buffer_init.mem", dut.frame_buffer.ram);
+        end
+
+        if ($fopen("z_buffer_init.mem", "r") == 0) begin
+            $display("WARNING: z_buffer.mem not found, starting with empty z-buffer.");
+        end else begin
+            $readmemh("z_buffer_init.mem", dut.z_buffer.ram);
+        end
+
         for (frame_count = 0; frame_count < 16; frame_count = frame_count + 1) begin
             $display("\n---------------------------------");
             $display("FRAME %0d", frame_count);
@@ -251,16 +248,13 @@ module top_level_tb;
             // 2. Reset
             rst = 1;
             increment_frame = 0;
-            
-            // Clear Memory (Black background)
-            for (i=0; i<76800; i=i+1) begin
-                frame_buffer[i] = 12'h000; 
-                z_buffer[i] = 8'hFF; // Far plane
-            end
 
             #100;
             rst = 0;
             #100;
+
+            // 3. Wait till exit T_RENDERING state
+            wait (dut.state == dut.T_IDLE || dut.state == dut.T_RENDERING);
 
             for (fc_i = 0; fc_i < frame_count; fc_i = fc_i + 1) begin
                 increment_frame = 1;
@@ -337,9 +331,9 @@ module top_level_tb;
                     idx = (239 - y) * 320 + x;
                     
                     $fwrite(fd, "%0d %0d %0d ", 
-                            frame_buffer[idx][11:8], 
-                            frame_buffer[idx][7:4], 
-                            frame_buffer[idx][3:0]);
+                            dut.frame_buffer.ram[idx][11:8], 
+                            dut.frame_buffer.ram[idx][7:4], 
+                            dut.frame_buffer.ram[idx][3:0]);
                 end
                 $fwrite(fd, "\n");
             end

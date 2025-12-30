@@ -3,7 +3,8 @@
 module geometry_engine (
     input i_clk,
     input i_rst,
-
+    
+    input wire       i_enabled,
     input wire       i_start,
     input wire       i_increment_frame,
     input wire       i_vertex_fifo_full,
@@ -252,7 +253,7 @@ module geometry_engine (
                             mvp_frame_count_i <= mvp_frame_count_i + 1;
                         end
                     end
-                    if (i_start && !i_vertex_fifo_full) begin
+                    if (i_start && !i_vertex_fifo_full && i_enabled) begin
                         vertex_addr_i <= 0;
                         vertex_count_i <= 0;
                         state_i <= S_VERTEX_FETCH;
