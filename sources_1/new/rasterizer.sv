@@ -237,7 +237,7 @@ module rasterizer(
         
         // Inputs from Delay Line
         .i_pixel_addr(addr_d1), 
-        .i_zb_cur_val(zb_data_d1),
+        .i_zb_cur_val(i_zb_r_data),
 
         // Outputs
         .o_fb_addr(o_fb_addr),

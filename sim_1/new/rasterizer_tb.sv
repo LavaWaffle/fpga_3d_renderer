@@ -134,8 +134,8 @@ module rasterizer_tb;
         // Clear Memory (Black background)
         for (i=0; i<76800; i=i+1) begin
             frame_buffer[i] = 12'h000; 
-             z_buffer[i] = 8'hFF; // Far plane
-//            z_buffer[i] = 8'h83; // Gradient for testing
+            //  z_buffer[i] = 8'hFF; // Far plane
+            z_buffer[i] = {4'hF, i[3:0]}; // Gradient for testing
         end
         
         #100;
@@ -143,17 +143,17 @@ module rasterizer_tb;
         #20;
 
         // --- Send Triangle ---
-//        // Vertex 0 (Top) -> RED
-//        x0 = 160; y0 = 110; z0 = 50; 
-//        u0 = 32'h00010000; v0 = 0;       
+       // Vertex 0 (Top) -> RED
+       x0 = 160; y0 = 110; z0 = 50; 
+       u0 = 32'h00010000; v0 = 0;       
 
-//        // Vertex 1 (Bottom Left) -> GREEN
-//        x1 = 150; y1 = 130; z1 = 50; 
-//        u1 = 0; v1 = 32'h00010000;       
+       // Vertex 1 (Bottom Left) -> GREEN
+       x1 = 150; y1 = 130; z1 = 50; 
+       u1 = 0; v1 = 32'h00010000;       
 
-//        // Vertex 2 (Bottom Right) -> BLUE
-//        x2 = 170; y2 = 130; z2 = 50; 
-//        u2 = 0; v2 = 0;           
+       // Vertex 2 (Bottom Right) -> BLUE
+       x2 = 170; y2 = 130; z2 = 50; 
+       u2 = 0; v2 = 0;           
                
 //         // Vertex 0 (Top Center) -> RED (U=1, V=0)
 //         // Vertex 0 (Top Center) -> RED (U=1, V=0)
@@ -173,20 +173,20 @@ module rasterizer_tb;
 
 // Vertex 0 (Top Center) -> RED (U=1, V=0)
          // Vertex 0 (Top Center) -> RED (U=1, V=0)
-            x0 = 121; y0 = 88;  z0 = 245;
-            u0 = 0; v0 = 0;
+//             x0 = 121; y0 = 88;  z0 = 245;
+//             u0 = 0; v0 = 0;
     
-            // SWAPPED Vertex 2 into Slot 1
-            // Vertex 1 (Bottom Right)
-            x1 = 160; y1 = 155; z1 = 241;
-//            u1 = 32'h00010000; v1 = 0;
-            u1 = 0; v1 = 32'h00010000;  
+//             // SWAPPED Vertex 2 into Slot 1
+//             // Vertex 1 (Bottom Right)
+//             x1 = 160; y1 = 155; z1 = 241;
+// //            u1 = 32'h00010000; v1 = 0;
+//             u1 = 0; v1 = 32'h00010000;  
 
-            // SWAPPED Vertex 1 into Slot 2
-            // Vertex 2 (Top Right - originally V1)
-            x2 = 212;  y2 = 77; z2 = 236; 
-            u2 = 32'h00010000; v2 = 0;
-//            u2 = 0; v2 = 32'h00010000;  
+//             // SWAPPED Vertex 1 into Slot 2
+//             // Vertex 2 (Top Right - originally V1)
+//             x2 = 212;  y2 = 77; z2 = 236; 
+//             u2 = 32'h00010000; v2 = 0;
+// //            u2 = 0; v2 = 32'h00010000;  
 
              
 
