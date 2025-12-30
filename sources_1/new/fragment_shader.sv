@@ -7,9 +7,9 @@ module fragment_shader(
     // -------------------------------------------------------------------------
     // 1. Pipeline Inputs (From Interpolator & Delays)
     // -------------------------------------------------------------------------
-    input wire signed [31:0] i_p_z, 
-    input wire signed [31:0] i_p_u, 
-    input wire signed [31:0] i_p_v,
+    input wire signed [31:0] i_p_z, // 8 bit int [0,255]
+    input wire signed [31:0] i_p_u, // Q16.16
+    input wire signed [31:0] i_p_v, // Q16.16
     input wire i_inside,    // From Interpolator
     input wire i_valid,     // From Interpolator
 

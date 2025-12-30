@@ -4,8 +4,8 @@ module q2_30_div (
     input wire i_clk,
     input wire i_rst,
     input wire i_start,
-    input wire signed [31:0] i_dividend, // Usually 1.0 (0x00010000)
-    input wire signed [31:0] i_divisor,  // The Area
+    input wire signed [31:0] i_dividend, // Numerator in Integer format (ex: 1'd1 for finding inverse area)
+    input wire signed [31:0] i_divisor,  // The Area in Integer format 
     output reg signed [31:0] o_quotient, // Result in Q2.30 format
     output reg o_done
 );

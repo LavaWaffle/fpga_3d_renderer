@@ -81,6 +81,7 @@ module rasterizer(
             o_busy <= 0;
             iter_start <= 0;
             flush_count <= 0;
+            start_div <= 0;
             x0_i <= 0; y0_i <= 0; x1_i <= 0; y1_i <= 0; x2_i <= 0; y2_i <= 0;
             z0_i <= 0; z1_i <= 0; z2_i <= 0;
             u0_i <= 0; v0_i <= 0; u1_i <= 0; v1_i <= 0; u2_i <= 0; v2_i <= 0;
@@ -118,6 +119,7 @@ module rasterizer(
                 end
 
                 SETUP_DIV: begin
+                    start_div <= 0; 
                     if (div_done) begin
                         // Divider finished, start the Pipeline!
                         iter_start <= 1; 

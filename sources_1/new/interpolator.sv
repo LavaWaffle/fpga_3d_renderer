@@ -7,20 +7,20 @@ module interpolator(
     // -------------------------------------------------------------------------
     // 1. Triangle Attributes (Constant for the whole triangle)
     // -------------------------------------------------------------------------
-    // Inverse Area (Q16.16) calculated in Setup
+    // Inverse Area (Q2.30)
     input wire signed [31:0] i_inv_area, 
     
-    // Vertex Z values (8-bit)
+    // Vertex Z values (8-bit Int)
     input wire [7:0] i_z0, i_z1, i_z2,
     
-    // Vertex U/V values (Q16.16)
+    // Vertex U/V values (Q2.30)
     input wire signed [31:0] i_u0, i_u1, i_u2,
     input wire signed [31:0] i_v0, i_v1, i_v2,
 
     // -------------------------------------------------------------------------
     // 2. Pipeline Input (From Edge Engine)
     // -------------------------------------------------------------------------
-    input wire signed [31:0] i_w0, i_w1, i_w2,
+    input wire signed [31:0] i_w0, i_w1, i_w2, // Barycentric Weights in Integer format
     input wire i_inside,
     input wire i_valid,
 
@@ -28,7 +28,7 @@ module interpolator(
     // 3. Pipeline Output (To Fragment Shader)
     // -------------------------------------------------------------------------    
     // Interpolated values in Q16.16 format
-    output reg signed [31:0] o_p_z, 
+    output reg signed [31:0] o_p_z, // Note z is actully just a 8 bit int [0,255]
     output reg signed [31:0] o_p_u, 
     output reg signed [31:0] o_p_v,
     

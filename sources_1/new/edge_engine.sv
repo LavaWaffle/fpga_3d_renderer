@@ -21,7 +21,7 @@ module edge_engine(
     // 3. Pipeline Output (To Interpolator)
     // -------------------------------------------------------------------------
     // Weights are signed 32-bit (Result of 16-bit multiplications)
-    output reg signed [31:0] o_w0, o_w1, o_w2,
+    output reg signed [31:0] o_w0, o_w1, o_w2, // Barycentric Weights in Integer format
     output reg o_inside, // High if pixel is INSIDE triangle
     output reg o_valid   // Forwarded valid signal
 );
