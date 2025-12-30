@@ -238,6 +238,6 @@ module fpga_top #(
                      ^ rast_fb_we         
                      ^ rast_zb_we 
                      ^ (^rast_o_zb_i_data) // Please don't optimize this :pray:
-                     ^ (^rasterizer_instance.stage4_shader.b_val); // Vital: Checks ALL bits of Z, not just LSB
+                     ; // Vital: Checks ALL bits of Z, not just LSB
     end
 endmodule

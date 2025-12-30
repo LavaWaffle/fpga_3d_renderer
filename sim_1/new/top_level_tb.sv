@@ -240,7 +240,7 @@ module top_level_tb;
             $readmemh("z_buffer_init.mem", dut.z_buffer.ram);
         end
 
-        for (frame_count = 0; frame_count < 16; frame_count = frame_count + 1) begin
+        for (frame_count = 0; frame_count < 64; frame_count = frame_count + 1) begin
             $display("\n---------------------------------");
             $display("FRAME %0d", frame_count);
             $display("---------------------------------\n");

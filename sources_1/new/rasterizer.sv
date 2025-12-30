@@ -130,7 +130,7 @@ module rasterizer(
                 RASTER_RUN: begin
                     // Wait for the Iterator to say "I have generated the last pixel"
                     if (iter_done) begin
-                        flush_count <= 3; // Wait 3 cycles for last pixel to exit Stage 4
+                        flush_count <= 5; // Increased flush count due to deeper pipeline
                         state <= RASTER_FLUSH;
                     end
                 end
@@ -160,9 +160,15 @@ module rasterizer(
     wire signed [31:0] s2_w0, s2_w1, s2_w2;
     wire s2_inside, s2_valid;
 
-    // --- Stage 3 -> Stage 4 Wires ---
+    // --- Stage 3 -> Stage 3.5 Wires ---
     wire signed [31:0] s3_p_z, s3_p_u, s3_p_v;
     wire s3_inside, s3_valid;
+    
+    // --- Stage 3.5 -> Stage 4 Wires ---
+    // These are the signals DELAYED while we waited for Texture RAM
+    reg signed [31:0] s3_p_z_d1;
+    reg s3_inside_d1, s3_valid_d1;
+    wire [11:0] tex_data_out; // Data coming out of Texture ROM
 
     // =========================================================================
     // 4. Pipeline Instantiation
@@ -202,50 +208,78 @@ module rasterizer(
         .o_p_z(s3_p_z), .o_p_u(s3_p_u), .o_p_v(s3_p_v),
         .o_inside(s3_inside), .o_valid(s3_valid)
     );
+    
+    // =========================================================================
+    // Stage 3.5: Texture Read & Delay Alignment
+    // =========================================================================
+    
+    // 1. Calculate Texture Address (Combinational)
+    // Map Q16.16 U/V to 0-63 (6 bits). 
+    // We take bits [15:10] of the integer/fraction boundary.
+    wire [11:0] tex_addr = { s3_p_v[15:10], s3_p_u[15:10] };
+    
+    // 2. Instantiate Texture ROM
+    texture_rom tex_rom_inst (
+        .i_clk(i_clk),
+        .i_addr(tex_addr),  
+        .o_data(tex_data_out) // Goes to Shader
+    );
 
     // =========================================================================
     // 5. The Delay Line (Timing Alignment)
     // =========================================================================
-    // The shader is in Stage 4.
-    // The Address was generated in Stage 1.
-    // The Math arrives at the shader inputs after Stage 3 finishes (2 clocks latency).
-    // We need to delay the address by 2 clocks.
+    // Old Chain: s1 -> addr_d1 -> addr_d2 -> addr_d3 (Target: Shader)
+    // New Chain: s1 -> d1 -> d2 -> d3 -> d4 (Target: Shader)
+    // We need 1 extra cycle because of the Texture Read Latency
     
-    reg [16:0] addr_d1, addr_d2, addr_d3;
-    reg [7:0]  zb_data_d1;
+    reg [16:0] addr_d1, addr_d2, addr_d3, addr_d4;
+    reg [7:0]  zb_data_d1, zb_data_d2;
 
     always_ff @(posedge i_clk) begin
-        // Delay Address (Cycle 1 -> Cycle 3)
+        // --- 1. Delay Address (Cycle 1 -> Cycle 4) ---
         addr_d1 <= s1_zb_addr_gen;
         addr_d2 <= addr_d1;
         addr_d3 <= addr_d2; 
+        addr_d4 <= addr_d3; // <--- To Shader (Matches Texture Data arrival)
 
-        // Delay Read Data (Cycle 2 -> Cycle 3)
-        // Assumption: BRAM Read Latency = 1 Cycle.
-        // Stage 1 issues Read at T0.
-        // BRAM returns Data at T1 (available at i_zb_data).
-        // Shader executes at T2.
-        // So we latch data at T1 to provide it to Shader at T2.
-        zb_data_d1 <= i_zb_r_data;
+        // --- 2. Delay Z-Buffer Read Data (Cycle 2 -> Cycle 4) ---
+        // Z-Buffer Read Issued at T0. Data Arrives at T1 (available at i_zb_r_data).
+        // Texture Read Issued at T2. Data Arrives at T3.
+        // We need to hold Z-buffer data until T3.
+        zb_data_d1 <= i_zb_r_data; 
+        zb_data_d2 <= zb_data_d1; // <--- To Shader
+
+        // --- 3. Pipeline Interpolator Outputs (Wait for Texture) ---
+        // Interpolator finishes at T2.
+        // Texture Data ready at T3.
+        s3_p_z_d1    <= s3_p_z;
+        s3_inside_d1 <= s3_inside;
+        s3_valid_d1  <= s3_valid;
     end
 
     // --- Stage 4: Fragment Shader ---
     fragment_shader stage4_shader (
         .i_clk(i_clk), .i_rst(i_rst),
-        .i_p_z(s3_p_z), .i_p_u(s3_p_u), .i_p_v(s3_p_v),
-        .i_inside(s3_inside), .i_valid(s3_valid),
         
+        // NEW: Connect delayed signals (from Stage 3.5)
+        .i_p_z(s3_p_z_d1), 
+        .i_inside(s3_inside_d1), 
+        .i_valid(s3_valid_d1),
+        
+        // NEW: Texture Input
+        .i_tex_pixel(tex_data_out), 
+
         // Inputs from Delay Line
-        .i_pixel_addr(addr_d1), 
-        .i_zb_cur_val(i_zb_r_data),
+        .i_pixel_addr(addr_d2), 
+        .i_zb_cur_val(zb_data_d1),
 
         // Outputs
         .o_fb_addr(o_fb_addr),
         .o_fb_we(o_fb_we),
         .o_fb_pixel(o_fb_pixel),
-
-        .o_zb_w_addr(o_zb_w_addr), // This is the WRITE address port logic
+        .o_zb_w_addr(o_zb_w_addr),
         .o_zb_w_we(o_zb_w_we),
         .o_zb_w_new_val(o_zb_w_data)
     );
+
 endmodule
