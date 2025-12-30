@@ -4,36 +4,29 @@ module fragment_shader(
     input wire i_clk,
     input wire i_rst,
 
-    // -------------------------------------------------------------------------
-    // 1. Pipeline Inputs (From Interpolator & Delays)
-    // -------------------------------------------------------------------------
+    // [TYPE] S32.0 Container holding U8.0 (0-255) Depth
     input wire signed [31:0] i_p_z, // 8 bit int [0,255]
-    // input wire signed [31:0] i_p_u, // Q16.16
-    // input wire signed [31:0] i_p_v, // Q16.16
-    input wire i_inside,    // From Interpolator
-    input wire i_valid,     // From Interpolator
 
+    input wire i_inside,    
+    input wire i_valid,     
+
+    // [TYPE] RGB444 (12-bit color)
     input wire [11:0] i_tex_pixel,
 
-    // Delayed Address info (Must be pipelined 3 cycles from Stage 1)
+    // [TYPE] Integer Linear Address
     input wire [16:0] i_pixel_addr, 
 
-    // -------------------------------------------------------------------------
-    // 2. Memory Inputs
-    // -------------------------------------------------------------------------
-    // The value read from Z-buffer (Latency must match pipeline depth)
+    // [TYPE] U8.0 (0-255) Depth from memory
     input wire [7:0] i_zb_cur_val, 
 
-    // -------------------------------------------------------------------------
-    // 3. Outputs (To Memory Controller / BRAM)
-    // -------------------------------------------------------------------------
+    // Outputs
     output reg [16:0] o_fb_addr,
     output reg        o_fb_we,
-    output reg [11:0] o_fb_pixel,
+    output reg [11:0] o_fb_pixel, // [TYPE] RGB444
     
     output reg [16:0] o_zb_w_addr,
     output reg        o_zb_w_we,
-    output reg [7:0]  o_zb_w_new_val
+    output reg [7:0]  o_zb_w_new_val // [TYPE] U8.0 (0-255 Depth)
 );
 
     // Logic Variables

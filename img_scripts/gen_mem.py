@@ -46,6 +46,12 @@ def main():
                         g_4 = g >> 4
                         b_4 = b >> 4
                         
+                        # anything in hte bottom half of hte image will become black
+                        if y >= height // 2:
+                            r_4 = 0
+                            g_4 = 0
+                            b_4 = 0
+                
                         # Format as 3-digit hex string (e.g., f0a)
                         hex_val = f"{r_4:x}{g_4:x}{b_4:x}"
                         

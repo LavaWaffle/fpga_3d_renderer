@@ -4,23 +4,17 @@ module edge_engine(
     input wire i_clk,
     input wire i_rst,
 
-    // -------------------------------------------------------------------------
-    // 1. Static Triangle Inputs (Held Constant during traversal)
-    // -------------------------------------------------------------------------
-    // We pass these through to the Interpolator so it has local access
+    // [TYPE] S16.0 - Triangle Vertices
     input wire signed [15:0] i_x0, i_y0, i_x1, i_y1, i_x2, i_y2,
 
-    // -------------------------------------------------------------------------
-    // 2. Pipeline Input (From Pixel Iterator)
-    // -------------------------------------------------------------------------
+    // [TYPE] S16.0 - Current Pixel
     input wire signed [15:0] i_p_x, 
     input wire signed [15:0] i_p_y,
     input wire i_valid, // High if this is a real pixel, Low if bubble
 
-    // -------------------------------------------------------------------------
-    // 3. Pipeline Output (To Interpolator)
-    // -------------------------------------------------------------------------
-    // Weights are signed 32-bit (Result of 16-bit multiplications)
+    // [TYPE] S32.0 (Signed Integer) - Output Weights
+    // These represent the area of the sub-triangles. 
+    // Range roughly: -Wait_Screen_Size to +Max_Screen_Size^2
     output reg signed [31:0] o_w0, o_w1, o_w2, // Barycentric Weights in Integer format
     output reg o_inside, // High if pixel is INSIDE triangle
     output reg o_valid   // Forwarded valid signal

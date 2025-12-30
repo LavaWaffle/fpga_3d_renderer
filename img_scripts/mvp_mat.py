@@ -154,7 +154,7 @@ if __name__ == "__main__":
     NEAR_PLANE   = 1.0
     FAR_PLANE    = 20.0
 
-    CAM_POS    = [0.0, 5.0, 10.0]
+    CAM_POS    = [0.0, 7.5, 10.0]
     CAM_TARGET = [0.0, 0.0, 0.0]
     CAM_UP     = [0.0, 1.0, 0.0]
 
