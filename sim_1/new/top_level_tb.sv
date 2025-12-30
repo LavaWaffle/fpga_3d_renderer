@@ -206,17 +206,17 @@ module top_level_tb;
             
             // --- LOGGING ---
             // Note: Accessed via 'dut.stage4_shader.i_p_u' because signals are inside submodules now
-            $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | zbufdata=%h | P: u=%h, v=%h z=%h", 
-                     $time, 
-                     fb_addr, 
-                     fb_addr % 320, // Extract X
-                     fb_addr / 320, // Extract Y
-                     fb_pixel, 
-                     dut.rasterizer_instance.stage4_shader.i_zb_cur_val,
-                     dut.rasterizer_instance.stage4_shader.i_p_u, 
-                     dut.rasterizer_instance.stage4_shader.i_p_v,
-                     dut.rasterizer_instance.stage4_shader.i_p_z
-            );
+            // $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | zbufdata=%h | P: u=%h, v=%h z=%h", 
+            //          $time, 
+            //          fb_addr, 
+            //          fb_addr % 320, // Extract X
+            //          fb_addr / 320, // Extract Y
+            //          fb_pixel, 
+            //          dut.rasterizer_instance.stage4_shader.i_zb_cur_val,
+            //          dut.rasterizer_instance.stage4_shader.i_p_u, 
+            //          dut.rasterizer_instance.stage4_shader.i_p_v,
+            //          dut.rasterizer_instance.stage4_shader.i_p_z
+            // );
         end
 
         // Z-Buffer Write (Using same WRITE address from Stage 4)
@@ -305,11 +305,17 @@ module top_level_tb;
                 end
                 begin
                     #(5us);
-                    wait (dut.rasterizer_instance.o_busy == 0);
+                    wait (dut.rasterizer_instance.o_busy == 0 && 
+                          dut.rasterizer_fifo_empty == 1 && 
+                          dut.triangle_assembler_instance.o_tri_valid == 0);
                     #(5us);
-                    wait (dut.rasterizer_instance.o_busy == 0);
+                    wait (dut.rasterizer_instance.o_busy == 0 && 
+                          dut.rasterizer_fifo_empty == 1 && 
+                          dut.triangle_assembler_instance.o_tri_valid == 0);
                     #(5us);
-                    wait (dut.rasterizer_instance.o_busy == 0);
+                    wait (dut.rasterizer_instance.o_busy == 0 && 
+                          dut.rasterizer_fifo_empty == 1 && 
+                          dut.triangle_assembler_instance.o_tri_valid == 0);
                     $display("No triangles to render %t", $time);
                 end
             join_any

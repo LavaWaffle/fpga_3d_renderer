@@ -20,14 +20,21 @@ TRIANGLE_COLOR = (255, 0, 0) # Red
 OUTLINE_COLOR = (255, 255, 255) 
 
 # The exact MVP matrix (Unchanged)
-mvp_matrix = np.array([
-    [   0.750,    0.000,    0.000,    0.000],
-    [   0.000,    1.000,    0.000,    0.000],
-    [   0.000,    0.000,   -1.105,    8.947],
-    [   0.000,    0.000,   -1.000,   10.000]], dtype=np.float32)
+# mvp_matrix = np.array([
+#     [   0.750,    0.000,    0.000,    0.000],
+#     [   0.000,    1.000,    0.000,    0.000],
+#     [   0.000,    0.000,   -1.105,    8.947],
+#     [   0.000,    0.000,   -1.000,   10.000]], dtype=np.float32)
+mvp_matrix = np.array(
+[[ 7.5000000e-01,  0.0000000e+00,  0.0000000e+00,  0.0000000e+00],
+ [ 0.0000000e+00,  8.9442718e-01, -4.4721359e-01, -1.1920929e-07],
+ [ 0.0000000e+00, -4.9428868e-01, -9.8857737e-01,  1.0251953e+01],
+ [ 0.0000000e+00, -4.4721359e-01, -8.9442718e-01,  1.1180340e+01]], dtype=np.float32)
+
+
 
 # --- CUBE CONFIGURATION ---
-CUBE_SIZE = 4.0       # Total length of one side
+CUBE_SIZE = 7.5       # Total length of one side
 hs = CUBE_SIZE / 2.0   # Half-Size (distance from origin to face)
 
 # Helper: Define the 8 corners of a cube centered at (0,0,0)

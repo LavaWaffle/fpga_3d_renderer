@@ -154,7 +154,7 @@ if __name__ == "__main__":
     NEAR_PLANE   = 1.0
     FAR_PLANE    = 20.0
 
-    CAM_POS    = [0.0, 0.0, 10.0]
+    CAM_POS    = [0.0, 5.0, 10.0]
     CAM_TARGET = [0.0, 0.0, 0.0]
     CAM_UP     = [0.0, 1.0, 0.0]
 
@@ -190,3 +190,9 @@ if __name__ == "__main__":
 
     # --- FINAL OUTPUT ---
     print_combined_verilog_array(all_frames_hex)
+
+    # Print first MVP matrix in python format 
+    rot_mat = get_rotation_matrix(ROTATION_AXIS, 0.0)
+    model_mat = create_model_matrix(OBJ_POS, OBJ_SCALE, rot_mat)
+    mvp_mat = vp_mat @ model_mat
+    print(mvp_mat)
