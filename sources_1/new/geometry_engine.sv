@@ -46,7 +46,7 @@ module geometry_engine (
 
     // Vertex Attributes (from RAM)
     reg [31:0] x_local_i, y_local_i, z_local_i, u_local_i, v_local_i;
-    reg [2:0] vertex_count_i;
+    reg unsigned [2:0] vertex_count_i;
 
     assign o_u = u_local_i;
     assign o_v = v_local_i;
@@ -162,6 +162,7 @@ module geometry_engine (
 
                     if (mvp_matrix_index == 15) begin
                         mvp_matrix_index <= 0;
+                        vertex_count_i <= 0;
                         state_i <= S_MATRIX_TRANSFORM; // All 16 elements fetched (+ vertex fetch b/c only 5 cycles needed)
                     end
 
@@ -172,7 +173,7 @@ module geometry_engine (
                     else if (vertex_count_i == 4) u_local_i <= vertex_data_i;
                     else if (vertex_count_i == 5) begin
                         v_local_i <= vertex_data_i;
-                        vertex_count_i <= 0;
+                        
                         
                         // Check for End of Stream Signal
                         if (
@@ -187,10 +188,12 @@ module geometry_engine (
                     end
     
                     // Handle Addressing
-                    if (vertex_count_i != 5) begin
+                    if (vertex_count_i < 5) begin
                         vertex_addr_i <= vertex_addr_i + 1;
-                        vertex_count_i <= vertex_count_i + 1;
                     end  
+                    if (vertex_count_i < 6) begin
+                        vertex_count_i <= vertex_count_i + 1;
+                    end
                 end
                 S_MATRIX_TRANSFORM: begin
                     // Perform 4 Dot Products in Parallel
