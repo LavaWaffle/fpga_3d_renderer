@@ -66,6 +66,8 @@ module geometry_engine (
     
     reg signed [31:0] x_clip_i, y_clip_i, z_clip_i, w_clip_i;
     
+    reg [2:0] transform_step;
+    
     function signed [31:0] mul_fix(input signed [31:0] a, input signed [31:0] b);
         logic signed [63:0] temp;
         begin
@@ -163,6 +165,7 @@ module geometry_engine (
                     if (mvp_matrix_index == 15) begin
                         mvp_matrix_index <= 0;
                         vertex_count_i <= 0;
+                        transform_step <= 0;
                         state_i <= S_MATRIX_TRANSFORM; // All 16 elements fetched (+ vertex fetch b/c only 5 cycles needed)
                     end
 
@@ -196,33 +199,26 @@ module geometry_engine (
                     end
                 end
                 S_MATRIX_TRANSFORM: begin
-                    // Perform 4 Dot Products in Parallel
-                    // Row 0 calculates new X
-                    x_clip_i <= mul_fix(MVP_MATRIX[0], x_local_i) + 
-                             mul_fix(MVP_MATRIX[1], y_local_i) + 
-                             mul_fix(MVP_MATRIX[2], z_local_i) + 
-                             mul_fix(MVP_MATRIX[3], 32'h00010000); // W=1.0
-
-                    // Row 1 calculates new Y
-                    y_clip_i <= mul_fix(MVP_MATRIX[4], x_local_i) + 
-                             mul_fix(MVP_MATRIX[5], y_local_i) + 
-                             mul_fix(MVP_MATRIX[6], z_local_i) + 
-                             mul_fix(MVP_MATRIX[7], 32'h00010000);
-
-                    // Row 2 calculates new Z
-                    z_clip_i <= mul_fix(MVP_MATRIX[8], x_local_i) + 
-                             mul_fix(MVP_MATRIX[9], y_local_i) + 
-                             mul_fix(MVP_MATRIX[10], z_local_i) + 
-                             mul_fix(MVP_MATRIX[11], 32'h00010000);
-
-                    // Row 3 calculates new W (Crucial for perspective!)
-                    w_clip_i <= mul_fix(MVP_MATRIX[12], x_local_i) + 
-                             mul_fix(MVP_MATRIX[13], y_local_i) + 
-                             mul_fix(MVP_MATRIX[14], z_local_i) + 
-                             mul_fix(MVP_MATRIX[15], 32'h00010000);
-
-                    start_div_i <= 1; 
-                    state_i <= S_PERSP_DIVIDE;
+                    logic signed [31:0] dot_product;
+                    
+                    dot_product = mul_fix(MVP_MATRIX[transform_step*4 + 0], x_local_i) + 
+                                  mul_fix(MVP_MATRIX[transform_step*4 + 1], y_local_i) + 
+                                  mul_fix(MVP_MATRIX[transform_step*4 + 2], z_local_i) + 
+                                  MVP_MATRIX[transform_step*4 + 3]; // Optimization: Removed mul_fix(..., 1.0)
+                    
+                    transform_step <= transform_step + 1;
+                    // Store result in the correct register
+                    case (transform_step)
+                        0: x_clip_i <= dot_product;
+                        1: y_clip_i <= dot_product;
+                        2: z_clip_i <= dot_product;
+                        3: begin
+                            w_clip_i <= dot_product;
+                            // All rows done, move to next state
+                            start_div_i <= 1; 
+                            state_i <= S_PERSP_DIVIDE;
+                        end
+                    endcase
                 end
                 S_PERSP_DIVIDE: begin
                     start_div_i <= 0; // Clear start signal
