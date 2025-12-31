@@ -123,7 +123,7 @@ module geometry_engine_tb;
             // D. Log FINAL OUTPUT (Screen Space)
             // -----------------------------------------------------------------
             // Wait until state goes back to Fetch
-            wait(dut.state_i == dut.S_VERTEX_FETCH);
+            wait(dut.state_i == dut.S_VERTEX_AND_MATRIX_FETCH);
             @(posedge clk); // Settle final assignment
 
             $display("  [3] FINAL OUTPUT (Screen Coords): %t", $time);

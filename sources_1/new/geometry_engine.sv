@@ -36,7 +36,7 @@ module geometry_engine (
     // Geometry Engine State Machine
     typedef enum {
         S_IDLE,
-        S_VERTEX_FETCH,
+        S_VERTEX_AND_MATRIX_FETCH,
         S_MATRIX_TRANSFORM,
         S_PERSP_DIVIDE,
         S_VIEWPORT_MAP
@@ -52,464 +52,17 @@ module geometry_engine (
     assign o_v = v_local_i;
 
     reg [5:0] mvp_frame_count_i;
-
-    // ==========================================
-    // ANIMATION DATA: 64 FRAMES
-    // Access: MVP_FRAMES[frame_index][matrix_element_index]
-    // ==========================================
-    logic signed [31:0] MVP_FRAMES [0:63][0:15] = '{
-        // Frame 0
-        '{
-            32'h0000C000, 32'h00000000, 32'h00000000, 32'h00000000,
-            32'h00000000, 32'h0000CCCC, 32'hFFFF6667, 32'h00000000,
-            32'h00000000, 32'hFFFF563C, 32'hFFFF1DA5, 32'h000BB5E5,
-            32'h00000000, 32'hFFFF6667, 32'hFFFF3334, 32'h000C8000
-        },
-        // Frame 1
-        '{
-            32'h0000BF13, 32'h00000000, 32'h000012D1, 32'h00000000,
-            32'h00000F0E, 32'h0000CCCC, 32'hFFFF6724, 32'h00000000,
-            32'h0000162F, 32'hFFFF563C, 32'hFFFF1EBC, 32'h000BB5E5,
-            32'h00001412, 32'hFFFF6667, 32'hFFFF3430, 32'h000C8000
-        },
-        // Frame 2
-        '{
-            32'h0000BC4F, 32'h00000000, 32'h00002575, 32'h00000000,
-            32'h00001DF7, 32'h0000CCCC, 32'hFFFF695A, 32'h00000000,
-            32'h00002C29, 32'hFFFF563C, 32'hFFFF21FE, 32'h000BB5E5,
-            32'h000027F4, 32'hFFFF6667, 32'hFFFF3723, 32'h000C8000
-        },
-        // Frame 3
-        '{
-            32'h0000B7BB, 32'h00000000, 32'h000037BC, 32'h00000000,
-            32'h00002C96, 32'h0000CCCC, 32'hFFFF6D04, 32'h00000000,
-            32'h000041B5, 32'hFFFF563C, 32'hFFFF2764, 32'h000BB5E5,
-            32'h00003B73, 32'hFFFF6667, 32'hFFFF3C05, 32'h000C8000
-        },
-        // Frame 4
-        '{
-            32'h0000B162, 32'h00000000, 32'h00004979, 32'h00000000,
-            32'h00003AC7, 32'h0000CCCC, 32'hFFFF7218, 32'h00000000,
-            32'h0000569F, 32'hFFFF563C, 32'hFFFF2EE0, 32'h000BB5E5,
-            32'h00004E5F, 32'hFFFF6667, 32'hFFFF42CB, 32'h000C8000
-        },
-        // Frame 5
-        '{
-            32'h0000A954, 32'h00000000, 32'h00005A82, 32'h00000000,
-            32'h00004868, 32'h0000CCCC, 32'hFFFF788A, 32'h00000000,
-            32'h00006AB4, 32'hFFFF563C, 32'hFFFF385F, 32'h000BB5E5,
-            32'h0000608A, 32'hFFFF6667, 32'hFFFF4B62, 32'h000C8000
-        },
-        // Frame 6
-        '{
-            32'h00009FA4, 32'h00000000, 32'h00006AAB, 32'h00000000,
-            32'h00005555, 32'h0000CCCC, 32'hFFFF804A, 32'h00000000,
-            32'h00007DC1, 32'hFFFF563C, 32'hFFFF43CB, 32'h000BB5E5,
-            32'h000071C7, 32'hFFFF6667, 32'hFFFF55B8, 32'h000C8000
-        },
-        // Frame 7
-        '{
-            32'h0000946B, 32'h00000000, 32'h000079CD, 32'h00000000,
-            32'h00006171, 32'h0000CCCC, 32'hFFFF8944, 32'h00000000,
-            32'h00008F99, 32'hFFFF563C, 32'hFFFF5106, 32'h000BB5E5,
-            32'h000081EC, 32'hFFFF6667, 32'hFFFF61B0, 32'h000C8000
-        },
-        // Frame 8
-        '{
-            32'h000087C3, 32'h00000000, 32'h000087C3, 32'h00000000,
-            32'h00006C9C, 32'h0000CCCC, 32'hFFFF9364, 32'h00000000,
-            32'h0000A00F, 32'hFFFF563C, 32'hFFFF5FF1, 32'h000BB5E5,
-            32'h000090D0, 32'hFFFF6667, 32'hFFFF6F30, 32'h000C8000
-        },
-        // Frame 9
-        '{
-            32'h000079CD, 32'h00000000, 32'h0000946B, 32'h00000000,
-            32'h000076BC, 32'h0000CCCC, 32'hFFFF9E8F, 32'h00000000,
-            32'h0000AEFA, 32'hFFFF563C, 32'hFFFF7067, 32'h000BB5E5,
-            32'h00009E50, 32'hFFFF6667, 32'hFFFF7E14, 32'h000C8000
-        },
-        // Frame 10
-        '{
-            32'h00006AAB, 32'h00000000, 32'h00009FA4, 32'h00000000,
-            32'h00007FB6, 32'h0000CCCC, 32'hFFFFAAAB, 32'h00000000,
-            32'h0000BC35, 32'hFFFF563C, 32'hFFFF823F, 32'h000BB5E5,
-            32'h0000AA48, 32'hFFFF6667, 32'hFFFF8E39, 32'h000C8000
-        },
-        // Frame 11
-        '{
-            32'h00005A82, 32'h00000000, 32'h0000A954, 32'h00000000,
-            32'h00008776, 32'h0000CCCC, 32'hFFFFB798, 32'h00000000,
-            32'h0000C7A1, 32'hFFFF563C, 32'hFFFF954C, 32'h000BB5E5,
-            32'h0000B49E, 32'hFFFF6667, 32'hFFFF9F76, 32'h000C8000
-        },
-        // Frame 12
-        '{
-            32'h00004979, 32'h00000000, 32'h0000B162, 32'h00000000,
-            32'h00008DE8, 32'h0000CCCC, 32'hFFFFC539, 32'h00000000,
-            32'h0000D120, 32'hFFFF563C, 32'hFFFFA961, 32'h000BB5E5,
-            32'h0000BD35, 32'hFFFF6667, 32'hFFFFB1A1, 32'h000C8000
-        },
-        // Frame 13
-        '{
-            32'h000037BC, 32'h00000000, 32'h0000B7BB, 32'h00000000,
-            32'h000092FC, 32'h0000CCCC, 32'hFFFFD36A, 32'h00000000,
-            32'h0000D89C, 32'hFFFF563C, 32'hFFFFBE4B, 32'h000BB5E5,
-            32'h0000C3FB, 32'hFFFF6667, 32'hFFFFC48D, 32'h000C8000
-        },
-        // Frame 14
-        '{
-            32'h00002575, 32'h00000000, 32'h0000BC4F, 32'h00000000,
-            32'h000096A6, 32'h0000CCCC, 32'hFFFFE209, 32'h00000000,
-            32'h0000DE02, 32'hFFFF563C, 32'hFFFFD3D7, 32'h000BB5E5,
-            32'h0000C8DD, 32'hFFFF6667, 32'hFFFFD80C, 32'h000C8000
-        },
-        // Frame 15
-        '{
-            32'h000012D1, 32'h00000000, 32'h0000BF13, 32'h00000000,
-            32'h000098DC, 32'h0000CCCC, 32'hFFFFF0F2, 32'h00000000,
-            32'h0000E144, 32'hFFFF563C, 32'hFFFFE9D1, 32'h000BB5E5,
-            32'h0000CBD0, 32'hFFFF6667, 32'hFFFFEBEE, 32'h000C8000
-        },
-        // Frame 16
-        '{
-            32'h00000000, 32'h00000000, 32'h0000C000, 32'h00000000,
-            32'h00009999, 32'h0000CCCC, 32'h00000000, 32'h00000000,
-            32'h0000E25B, 32'hFFFF563C, 32'h00000000, 32'h000BB5E5,
-            32'h0000CCCC, 32'hFFFF6667, 32'h00000000, 32'h000C8000
-        },
-        // Frame 17
-        '{
-            32'hFFFFED2F, 32'h00000000, 32'h0000BF13, 32'h00000000,
-            32'h000098DC, 32'h0000CCCC, 32'h00000F0E, 32'h00000000,
-            32'h0000E144, 32'hFFFF563C, 32'h0000162F, 32'h000BB5E5,
-            32'h0000CBD0, 32'hFFFF6667, 32'h00001412, 32'h000C8000
-        },
-        // Frame 18
-        '{
-            32'hFFFFDA8B, 32'h00000000, 32'h0000BC4F, 32'h00000000,
-            32'h000096A6, 32'h0000CCCC, 32'h00001DF7, 32'h00000000,
-            32'h0000DE02, 32'hFFFF563C, 32'h00002C29, 32'h000BB5E5,
-            32'h0000C8DD, 32'hFFFF6667, 32'h000027F4, 32'h000C8000
-        },
-        // Frame 19
-        '{
-            32'hFFFFC844, 32'h00000000, 32'h0000B7BB, 32'h00000000,
-            32'h000092FC, 32'h0000CCCC, 32'h00002C96, 32'h00000000,
-            32'h0000D89C, 32'hFFFF563C, 32'h000041B5, 32'h000BB5E5,
-            32'h0000C3FB, 32'hFFFF6667, 32'h00003B73, 32'h000C8000
-        },
-        // Frame 20
-        '{
-            32'hFFFFB687, 32'h00000000, 32'h0000B162, 32'h00000000,
-            32'h00008DE8, 32'h0000CCCC, 32'h00003AC7, 32'h00000000,
-            32'h0000D120, 32'hFFFF563C, 32'h0000569F, 32'h000BB5E5,
-            32'h0000BD35, 32'hFFFF6667, 32'h00004E5F, 32'h000C8000
-        },
-        // Frame 21
-        '{
-            32'hFFFFA57E, 32'h00000000, 32'h0000A954, 32'h00000000,
-            32'h00008776, 32'h0000CCCC, 32'h00004868, 32'h00000000,
-            32'h0000C7A1, 32'hFFFF563C, 32'h00006AB4, 32'h000BB5E5,
-            32'h0000B49E, 32'hFFFF6667, 32'h0000608A, 32'h000C8000
-        },
-        // Frame 22
-        '{
-            32'hFFFF9555, 32'h00000000, 32'h00009FA4, 32'h00000000,
-            32'h00007FB6, 32'h0000CCCC, 32'h00005555, 32'h00000000,
-            32'h0000BC35, 32'hFFFF563C, 32'h00007DC1, 32'h000BB5E5,
-            32'h0000AA48, 32'hFFFF6667, 32'h000071C7, 32'h000C8000
-        },
-        // Frame 23
-        '{
-            32'hFFFF8633, 32'h00000000, 32'h0000946B, 32'h00000000,
-            32'h000076BC, 32'h0000CCCC, 32'h00006171, 32'h00000000,
-            32'h0000AEFA, 32'hFFFF563C, 32'h00008F99, 32'h000BB5E5,
-            32'h00009E50, 32'hFFFF6667, 32'h000081EC, 32'h000C8000
-        },
-        // Frame 24
-        '{
-            32'hFFFF783D, 32'h00000000, 32'h000087C3, 32'h00000000,
-            32'h00006C9C, 32'h0000CCCC, 32'h00006C9C, 32'h00000000,
-            32'h0000A00F, 32'hFFFF563C, 32'h0000A00F, 32'h000BB5E5,
-            32'h000090D0, 32'hFFFF6667, 32'h000090D0, 32'h000C8000
-        },
-        // Frame 25
-        '{
-            32'hFFFF6B95, 32'h00000000, 32'h000079CD, 32'h00000000,
-            32'h00006171, 32'h0000CCCC, 32'h000076BC, 32'h00000000,
-            32'h00008F99, 32'hFFFF563C, 32'h0000AEFA, 32'h000BB5E5,
-            32'h000081EC, 32'hFFFF6667, 32'h00009E50, 32'h000C8000
-        },
-        // Frame 26
-        '{
-            32'hFFFF605C, 32'h00000000, 32'h00006AAB, 32'h00000000,
-            32'h00005555, 32'h0000CCCC, 32'h00007FB6, 32'h00000000,
-            32'h00007DC1, 32'hFFFF563C, 32'h0000BC35, 32'h000BB5E5,
-            32'h000071C7, 32'hFFFF6667, 32'h0000AA48, 32'h000C8000
-        },
-        // Frame 27
-        '{
-            32'hFFFF56AC, 32'h00000000, 32'h00005A82, 32'h00000000,
-            32'h00004868, 32'h0000CCCC, 32'h00008776, 32'h00000000,
-            32'h00006AB4, 32'hFFFF563C, 32'h0000C7A1, 32'h000BB5E5,
-            32'h0000608A, 32'hFFFF6667, 32'h0000B49E, 32'h000C8000
-        },
-        // Frame 28
-        '{
-            32'hFFFF4E9E, 32'h00000000, 32'h00004979, 32'h00000000,
-            32'h00003AC7, 32'h0000CCCC, 32'h00008DE8, 32'h00000000,
-            32'h0000569F, 32'hFFFF563C, 32'h0000D120, 32'h000BB5E5,
-            32'h00004E5F, 32'hFFFF6667, 32'h0000BD35, 32'h000C8000
-        },
-        // Frame 29
-        '{
-            32'hFFFF4845, 32'h00000000, 32'h000037BC, 32'h00000000,
-            32'h00002C96, 32'h0000CCCC, 32'h000092FC, 32'h00000000,
-            32'h000041B5, 32'hFFFF563C, 32'h0000D89C, 32'h000BB5E5,
-            32'h00003B73, 32'hFFFF6667, 32'h0000C3FB, 32'h000C8000
-        },
-        // Frame 30
-        '{
-            32'hFFFF43B1, 32'h00000000, 32'h00002575, 32'h00000000,
-            32'h00001DF7, 32'h0000CCCC, 32'h000096A6, 32'h00000000,
-            32'h00002C29, 32'hFFFF563C, 32'h0000DE02, 32'h000BB5E5,
-            32'h000027F4, 32'hFFFF6667, 32'h0000C8DD, 32'h000C8000
-        },
-        // Frame 31
-        '{
-            32'hFFFF40ED, 32'h00000000, 32'h000012D1, 32'h00000000,
-            32'h00000F0E, 32'h0000CCCC, 32'h000098DC, 32'h00000000,
-            32'h0000162F, 32'hFFFF563C, 32'h0000E144, 32'h000BB5E5,
-            32'h00001412, 32'hFFFF6667, 32'h0000CBD0, 32'h000C8000
-        },
-        // Frame 32
-        '{
-            32'hFFFF4000, 32'h00000000, 32'h00000000, 32'h00000000,
-            32'h00000000, 32'h0000CCCC, 32'h00009999, 32'h00000000,
-            32'h00000000, 32'hFFFF563C, 32'h0000E25B, 32'h000BB5E5,
-            32'h00000000, 32'hFFFF6667, 32'h0000CCCC, 32'h000C8000
-        },
-        // Frame 33
-        '{
-            32'hFFFF40ED, 32'h00000000, 32'hFFFFED2F, 32'h00000000,
-            32'hFFFFF0F2, 32'h0000CCCC, 32'h000098DC, 32'h00000000,
-            32'hFFFFE9D1, 32'hFFFF563C, 32'h0000E144, 32'h000BB5E5,
-            32'hFFFFEBEE, 32'hFFFF6667, 32'h0000CBD0, 32'h000C8000
-        },
-        // Frame 34
-        '{
-            32'hFFFF43B1, 32'h00000000, 32'hFFFFDA8B, 32'h00000000,
-            32'hFFFFE209, 32'h0000CCCC, 32'h000096A6, 32'h00000000,
-            32'hFFFFD3D7, 32'hFFFF563C, 32'h0000DE02, 32'h000BB5E5,
-            32'hFFFFD80C, 32'hFFFF6667, 32'h0000C8DD, 32'h000C8000
-        },
-        // Frame 35
-        '{
-            32'hFFFF4845, 32'h00000000, 32'hFFFFC844, 32'h00000000,
-            32'hFFFFD36A, 32'h0000CCCC, 32'h000092FC, 32'h00000000,
-            32'hFFFFBE4B, 32'hFFFF563C, 32'h0000D89C, 32'h000BB5E5,
-            32'hFFFFC48D, 32'hFFFF6667, 32'h0000C3FB, 32'h000C8000
-        },
-        // Frame 36
-        '{
-            32'hFFFF4E9E, 32'h00000000, 32'hFFFFB687, 32'h00000000,
-            32'hFFFFC539, 32'h0000CCCC, 32'h00008DE8, 32'h00000000,
-            32'hFFFFA961, 32'hFFFF563C, 32'h0000D120, 32'h000BB5E5,
-            32'hFFFFB1A1, 32'hFFFF6667, 32'h0000BD35, 32'h000C8000
-        },
-        // Frame 37
-        '{
-            32'hFFFF56AC, 32'h00000000, 32'hFFFFA57E, 32'h00000000,
-            32'hFFFFB798, 32'h0000CCCC, 32'h00008776, 32'h00000000,
-            32'hFFFF954C, 32'hFFFF563C, 32'h0000C7A1, 32'h000BB5E5,
-            32'hFFFF9F76, 32'hFFFF6667, 32'h0000B49E, 32'h000C8000
-        },
-        // Frame 38
-        '{
-            32'hFFFF605C, 32'h00000000, 32'hFFFF9555, 32'h00000000,
-            32'hFFFFAAAB, 32'h0000CCCC, 32'h00007FB6, 32'h00000000,
-            32'hFFFF823F, 32'hFFFF563C, 32'h0000BC35, 32'h000BB5E5,
-            32'hFFFF8E39, 32'hFFFF6667, 32'h0000AA48, 32'h000C8000
-        },
-        // Frame 39
-        '{
-            32'hFFFF6B95, 32'h00000000, 32'hFFFF8633, 32'h00000000,
-            32'hFFFF9E8F, 32'h0000CCCC, 32'h000076BC, 32'h00000000,
-            32'hFFFF7067, 32'hFFFF563C, 32'h0000AEFA, 32'h000BB5E5,
-            32'hFFFF7E14, 32'hFFFF6667, 32'h00009E50, 32'h000C8000
-        },
-        // Frame 40
-        '{
-            32'hFFFF783D, 32'h00000000, 32'hFFFF783D, 32'h00000000,
-            32'hFFFF9364, 32'h0000CCCC, 32'h00006C9C, 32'h00000000,
-            32'hFFFF5FF1, 32'hFFFF563C, 32'h0000A00F, 32'h000BB5E5,
-            32'hFFFF6F30, 32'hFFFF6667, 32'h000090D0, 32'h000C8000
-        },
-        // Frame 41
-        '{
-            32'hFFFF8633, 32'h00000000, 32'hFFFF6B95, 32'h00000000,
-            32'hFFFF8944, 32'h0000CCCC, 32'h00006171, 32'h00000000,
-            32'hFFFF5106, 32'hFFFF563C, 32'h00008F99, 32'h000BB5E5,
-            32'hFFFF61B0, 32'hFFFF6667, 32'h000081EC, 32'h000C8000
-        },
-        // Frame 42
-        '{
-            32'hFFFF9555, 32'h00000000, 32'hFFFF605C, 32'h00000000,
-            32'hFFFF804A, 32'h0000CCCC, 32'h00005555, 32'h00000000,
-            32'hFFFF43CB, 32'hFFFF563C, 32'h00007DC1, 32'h000BB5E5,
-            32'hFFFF55B8, 32'hFFFF6667, 32'h000071C7, 32'h000C8000
-        },
-        // Frame 43
-        '{
-            32'hFFFFA57E, 32'h00000000, 32'hFFFF56AC, 32'h00000000,
-            32'hFFFF788A, 32'h0000CCCC, 32'h00004868, 32'h00000000,
-            32'hFFFF385F, 32'hFFFF563C, 32'h00006AB4, 32'h000BB5E5,
-            32'hFFFF4B62, 32'hFFFF6667, 32'h0000608A, 32'h000C8000
-        },
-        // Frame 44
-        '{
-            32'hFFFFB687, 32'h00000000, 32'hFFFF4E9E, 32'h00000000,
-            32'hFFFF7218, 32'h0000CCCC, 32'h00003AC7, 32'h00000000,
-            32'hFFFF2EE0, 32'hFFFF563C, 32'h0000569F, 32'h000BB5E5,
-            32'hFFFF42CB, 32'hFFFF6667, 32'h00004E5F, 32'h000C8000
-        },
-        // Frame 45
-        '{
-            32'hFFFFC844, 32'h00000000, 32'hFFFF4845, 32'h00000000,
-            32'hFFFF6D04, 32'h0000CCCC, 32'h00002C96, 32'h00000000,
-            32'hFFFF2764, 32'hFFFF563C, 32'h000041B5, 32'h000BB5E5,
-            32'hFFFF3C05, 32'hFFFF6667, 32'h00003B73, 32'h000C8000
-        },
-        // Frame 46
-        '{
-            32'hFFFFDA8B, 32'h00000000, 32'hFFFF43B1, 32'h00000000,
-            32'hFFFF695A, 32'h0000CCCC, 32'h00001DF7, 32'h00000000,
-            32'hFFFF21FE, 32'hFFFF563C, 32'h00002C29, 32'h000BB5E5,
-            32'hFFFF3723, 32'hFFFF6667, 32'h000027F4, 32'h000C8000
-        },
-        // Frame 47
-        '{
-            32'hFFFFED2F, 32'h00000000, 32'hFFFF40ED, 32'h00000000,
-            32'hFFFF6724, 32'h0000CCCC, 32'h00000F0E, 32'h00000000,
-            32'hFFFF1EBC, 32'hFFFF563C, 32'h0000162F, 32'h000BB5E5,
-            32'hFFFF3430, 32'hFFFF6667, 32'h00001412, 32'h000C8000
-        },
-        // Frame 48
-        '{
-            32'h00000000, 32'h00000000, 32'hFFFF4000, 32'h00000000,
-            32'hFFFF6667, 32'h0000CCCC, 32'h00000000, 32'h00000000,
-            32'hFFFF1DA5, 32'hFFFF563C, 32'h00000000, 32'h000BB5E5,
-            32'hFFFF3334, 32'hFFFF6667, 32'h00000000, 32'h000C8000
-        },
-        // Frame 49
-        '{
-            32'h000012D1, 32'h00000000, 32'hFFFF40ED, 32'h00000000,
-            32'hFFFF6724, 32'h0000CCCC, 32'hFFFFF0F2, 32'h00000000,
-            32'hFFFF1EBC, 32'hFFFF563C, 32'hFFFFE9D1, 32'h000BB5E5,
-            32'hFFFF3430, 32'hFFFF6667, 32'hFFFFEBEE, 32'h000C8000
-        },
-        // Frame 50
-        '{
-            32'h00002575, 32'h00000000, 32'hFFFF43B1, 32'h00000000,
-            32'hFFFF695A, 32'h0000CCCC, 32'hFFFFE209, 32'h00000000,
-            32'hFFFF21FE, 32'hFFFF563C, 32'hFFFFD3D7, 32'h000BB5E5,
-            32'hFFFF3723, 32'hFFFF6667, 32'hFFFFD80C, 32'h000C8000
-        },
-        // Frame 51
-        '{
-            32'h000037BC, 32'h00000000, 32'hFFFF4845, 32'h00000000,
-            32'hFFFF6D04, 32'h0000CCCC, 32'hFFFFD36A, 32'h00000000,
-            32'hFFFF2764, 32'hFFFF563C, 32'hFFFFBE4B, 32'h000BB5E5,
-            32'hFFFF3C05, 32'hFFFF6667, 32'hFFFFC48D, 32'h000C8000
-        },
-        // Frame 52
-        '{
-            32'h00004979, 32'h00000000, 32'hFFFF4E9E, 32'h00000000,
-            32'hFFFF7218, 32'h0000CCCC, 32'hFFFFC539, 32'h00000000,
-            32'hFFFF2EE0, 32'hFFFF563C, 32'hFFFFA961, 32'h000BB5E5,
-            32'hFFFF42CB, 32'hFFFF6667, 32'hFFFFB1A1, 32'h000C8000
-        },
-        // Frame 53
-        '{
-            32'h00005A82, 32'h00000000, 32'hFFFF56AC, 32'h00000000,
-            32'hFFFF788A, 32'h0000CCCC, 32'hFFFFB798, 32'h00000000,
-            32'hFFFF385F, 32'hFFFF563C, 32'hFFFF954C, 32'h000BB5E5,
-            32'hFFFF4B62, 32'hFFFF6667, 32'hFFFF9F76, 32'h000C8000
-        },
-        // Frame 54
-        '{
-            32'h00006AAB, 32'h00000000, 32'hFFFF605C, 32'h00000000,
-            32'hFFFF804A, 32'h0000CCCC, 32'hFFFFAAAB, 32'h00000000,
-            32'hFFFF43CB, 32'hFFFF563C, 32'hFFFF823F, 32'h000BB5E5,
-            32'hFFFF55B8, 32'hFFFF6667, 32'hFFFF8E39, 32'h000C8000
-        },
-        // Frame 55
-        '{
-            32'h000079CD, 32'h00000000, 32'hFFFF6B95, 32'h00000000,
-            32'hFFFF8944, 32'h0000CCCC, 32'hFFFF9E8F, 32'h00000000,
-            32'hFFFF5106, 32'hFFFF563C, 32'hFFFF7067, 32'h000BB5E5,
-            32'hFFFF61B0, 32'hFFFF6667, 32'hFFFF7E14, 32'h000C8000
-        },
-        // Frame 56
-        '{
-            32'h000087C3, 32'h00000000, 32'hFFFF783D, 32'h00000000,
-            32'hFFFF9364, 32'h0000CCCC, 32'hFFFF9364, 32'h00000000,
-            32'hFFFF5FF1, 32'hFFFF563C, 32'hFFFF5FF1, 32'h000BB5E5,
-            32'hFFFF6F30, 32'hFFFF6667, 32'hFFFF6F30, 32'h000C8000
-        },
-        // Frame 57
-        '{
-            32'h0000946B, 32'h00000000, 32'hFFFF8633, 32'h00000000,
-            32'hFFFF9E8F, 32'h0000CCCC, 32'hFFFF8944, 32'h00000000,
-            32'hFFFF7067, 32'hFFFF563C, 32'hFFFF5106, 32'h000BB5E5,
-            32'hFFFF7E14, 32'hFFFF6667, 32'hFFFF61B0, 32'h000C8000
-        },
-        // Frame 58
-        '{
-            32'h00009FA4, 32'h00000000, 32'hFFFF9555, 32'h00000000,
-            32'hFFFFAAAB, 32'h0000CCCC, 32'hFFFF804A, 32'h00000000,
-            32'hFFFF823F, 32'hFFFF563C, 32'hFFFF43CB, 32'h000BB5E5,
-            32'hFFFF8E39, 32'hFFFF6667, 32'hFFFF55B8, 32'h000C8000
-        },
-        // Frame 59
-        '{
-            32'h0000A954, 32'h00000000, 32'hFFFFA57E, 32'h00000000,
-            32'hFFFFB798, 32'h0000CCCC, 32'hFFFF788A, 32'h00000000,
-            32'hFFFF954C, 32'hFFFF563C, 32'hFFFF385F, 32'h000BB5E5,
-            32'hFFFF9F76, 32'hFFFF6667, 32'hFFFF4B62, 32'h000C8000
-        },
-        // Frame 60
-        '{
-            32'h0000B162, 32'h00000000, 32'hFFFFB687, 32'h00000000,
-            32'hFFFFC539, 32'h0000CCCC, 32'hFFFF7218, 32'h00000000,
-            32'hFFFFA961, 32'hFFFF563C, 32'hFFFF2EE0, 32'h000BB5E5,
-            32'hFFFFB1A1, 32'hFFFF6667, 32'hFFFF42CB, 32'h000C8000
-        },
-        // Frame 61
-        '{
-            32'h0000B7BB, 32'h00000000, 32'hFFFFC844, 32'h00000000,
-            32'hFFFFD36A, 32'h0000CCCC, 32'hFFFF6D04, 32'h00000000,
-            32'hFFFFBE4B, 32'hFFFF563C, 32'hFFFF2764, 32'h000BB5E5,
-            32'hFFFFC48D, 32'hFFFF6667, 32'hFFFF3C05, 32'h000C8000
-        },
-        // Frame 62
-        '{
-            32'h0000BC4F, 32'h00000000, 32'hFFFFDA8B, 32'h00000000,
-            32'hFFFFE209, 32'h0000CCCC, 32'hFFFF695A, 32'h00000000,
-            32'hFFFFD3D7, 32'hFFFF563C, 32'hFFFF21FE, 32'h000BB5E5,
-            32'hFFFFD80C, 32'hFFFF6667, 32'hFFFF3723, 32'h000C8000
-        },
-        // Frame 63
-        '{
-            32'h0000BF13, 32'h00000000, 32'hFFFFED2F, 32'h00000000,
-            32'hFFFFF0F2, 32'h0000CCCC, 32'hFFFF6724, 32'h00000000,
-            32'hFFFFE9D1, 32'hFFFF563C, 32'hFFFF1EBC, 32'h000BB5E5,
-            32'hFFFFEBEE, 32'hFFFF6667, 32'hFFFF3430, 32'h000C8000
-        }
-    };
         
     logic signed [31:0] MVP_MATRIX [0:15];
-    assign MVP_MATRIX = MVP_FRAMES[mvp_frame_count_i];
+    reg [3:0] mvp_matrix_index;
+    wire [31:0] mvp_lutram_data_out;
+
+    mvp_lutram mvp_lutram_instance (
+        .clk(i_clk),
+        // Upper 6 bits select frame, lower 4 bits select matrix element
+        .addr({mvp_frame_count_i, mvp_matrix_index}),
+        .data_out(mvp_lutram_data_out)
+    );
     
     reg signed [31:0] x_clip_i, y_clip_i, z_clip_i, w_clip_i;
     
@@ -568,6 +121,7 @@ module geometry_engine (
         if (i_rst) begin
             state_i <= S_IDLE;
             mvp_frame_count_i <= 0;
+            mvp_matrix_index <= 0;
             vertex_addr_i <= 0;
             vertex_count_i <= 0;
             o_vertex_valid <= 0;
@@ -596,11 +150,22 @@ module geometry_engine (
                     if (i_start && !i_vertex_fifo_full && i_enabled) begin
                         vertex_addr_i <= 0;
                         vertex_count_i <= 0;
-                        state_i <= S_VERTEX_FETCH;
+
+                        mvp_matrix_index <= 0;
+                        state_i <= S_VERTEX_AND_MATRIX_FETCH;
                     end
                 end
-                S_VERTEX_FETCH: begin
-                    // Start at 1 to give clk cycle for RAM read
+                S_VERTEX_AND_MATRIX_FETCH: begin
+                    // MVP Matrix Fetching (FROM LUTRAM)
+                    MVP_MATRIX[mvp_matrix_index] <= mvp_lutram_data_out;
+                    mvp_matrix_index <= mvp_matrix_index + 1;
+
+                    if (mvp_matrix_index == 15) begin
+                        mvp_matrix_index <= 0;
+                        state_i <= S_MATRIX_TRANSFORM; // All 16 elements fetched (+ vertex fetch b/c only 5 cycles needed)
+                    end
+
+                    // Vertex Attribute Fetching (FROM BRAM)
                     if (vertex_count_i == 1) x_local_i <= vertex_data_i;
                     else if (vertex_count_i == 2) y_local_i <= vertex_data_i;
                     else if (vertex_count_i == 3) z_local_i <= vertex_data_i;
@@ -618,16 +183,14 @@ module geometry_engine (
                             vertex_data_i == 32'hFFFFFFFF 
                         ) begin 
                             state_i <= S_IDLE;
-                        end else begin 
-                            state_i <= S_MATRIX_TRANSFORM;
-                        end
+                        end 
                     end
     
                     // Handle Addressing
                     if (vertex_count_i != 5) begin
                         vertex_addr_i <= vertex_addr_i + 1;
                         vertex_count_i <= vertex_count_i + 1;
-                    end
+                    end  
                 end
                 S_MATRIX_TRANSFORM: begin
                     // Perform 4 Dot Products in Parallel
@@ -667,7 +230,7 @@ module geometry_engine (
                         // If W < Near_Plane (0.1 in fixed point ~ 6553), point is behind camera
                         if (w_clip_i < 32'h00001999) begin 
                             // Invalid! Skip to next vertex immediately
-                            state_i <= S_VERTEX_FETCH;
+                            state_i <= S_VERTEX_AND_MATRIX_FETCH;
                             // Note: You need logic to handle "partial" triangles later, 
                             // but for now we just drop bad vertices.
                         end else begin
@@ -701,7 +264,7 @@ module geometry_engine (
                     // Output valid vertex
                     o_vertex_valid <= 1;
                     // Done with this vertex. Go to next.
-                    state_i <= S_VERTEX_FETCH;
+                    state_i <= S_VERTEX_AND_MATRIX_FETCH;
                 end
             endcase
         end
