@@ -301,34 +301,42 @@ module fpga_top #(
     assign red  = vga_fb_pixel[11:8];
     assign green= vga_fb_pixel[7:4];
     assign blue = vga_fb_pixel[3:0];
-    //Real Digital VGA to HDMI converter
-    hdmi_tx_0 vga_to_hdmi (
-        //Clocking and Reset
-        .pix_clk(clk_25MHz),
-        .pix_clkx5(clk_125MHz),
-        .pix_clk_locked(locked),
-        .rst(rst),
-
-        //Color and Sync Signals (12 bit color)
-        .red(red),
-        .green(green),
-        .blue(blue),
-        .hsync(hsync),
-        .vsync(vsync),
-        .vde(vde),
-        
-        //aux Data (unused)
-        .aux0_din(4'b0),
-        .aux1_din(4'b0),
-        .aux2_din(4'b0),
-        .ade(1'b0),
-        
-        //Differential outputs
-        .TMDS_CLK_P(hdmi_tmds_clk_p),          
-        .TMDS_CLK_N(hdmi_tmds_clk_n),          
-        .TMDS_DATA_P(hdmi_tmds_data_p),         
-        .TMDS_DATA_N(hdmi_tmds_data_n)          
-    );
+    
+    `ifdef SYNTHESIS
+        //Real Digital VGA to HDMI converter
+        hdmi_tx_0 vga_to_hdmi (
+            //Clocking and Reset
+            .pix_clk(clk_25MHz),
+            .pix_clkx5(clk_125MHz),
+            .pix_clk_locked(locked),
+            .rst(rst),
+    
+            //Color and Sync Signals (12 bit color)
+            .red(red),
+            .green(green),
+            .blue(blue),
+            .hsync(hsync),
+            .vsync(vsync),
+            .vde(vde),
+            
+            //aux Data (unused)
+            .aux0_din(4'b0),
+            .aux1_din(4'b0),
+            .aux2_din(4'b0),
+            .ade(1'b0),
+            
+            //Differential outputs
+            .TMDS_CLK_P(hdmi_tmds_clk_p),          
+            .TMDS_CLK_N(hdmi_tmds_clk_n),          
+            .TMDS_DATA_P(hdmi_tmds_data_p),         
+            .TMDS_DATA_N(hdmi_tmds_data_n)          
+        );
+    `else
+        initial begin
+            $display("HDMI Output is disabled in simulation.");
+        end
+    `endif
+   
 
 //    always_ff @(posedge clk) begin
 //        // Unary XOR (^) before a vector reduces all its bits to 1 bit.
