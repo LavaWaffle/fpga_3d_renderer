@@ -9,6 +9,8 @@ module geometry_engine (
     input wire       i_increment_frame,
     input wire       i_vertex_fifo_full,
 
+    output reg      o_busy,
+
     // OUTPUTS TO FIFO
     output reg        o_vertex_valid, 
     output reg [31:0] o_x, o_y,
@@ -574,10 +576,12 @@ module geometry_engine (
             z_local_i <= 0;
             u_local_i <= 0;
             v_local_i <= 0;
+            o_busy <= 0;
         end else begin
             // Default to invalid
             o_vertex_valid <= 0;
             prev_increment_frame_i <= i_increment_frame;
+            o_busy <= (state_i != S_IDLE);
 
             case (state_i)
                 S_IDLE: begin
