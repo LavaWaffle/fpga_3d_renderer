@@ -19,43 +19,43 @@ module edge_engine(
     output reg o_inside, // High if pixel is INSIDE triangle
     output reg o_valid   // Forwarded valid signal
 );
-
-    // Combinatorial Logic variables
-    logic signed [31:0] w0_comb, w1_comb, w2_comb;
-    logic inside_comb;
+    logic signed [31:0] w0_raw, w1_raw, w2_raw;
+    logic signed [31:0] w0_next, w1_next, w2_next;
+    logic inside_next;
 
     always_comb begin
         logic all_pos, all_neg;
+        
         // =====================================================================
         // Barycentric Weight Calculation (Cross Product)
         // =====================================================================
         // Force 32-bit math for the multiplication by casting inputs first
         // 1. Calculate Weights (Using the 32-bit cast fix from before)
-        w0_comb = (signed'(32'(i_p_x)) - signed'(32'(i_x0))) * (signed'(32'(i_y1)) - signed'(32'(i_y0))) - 
+        w0_raw = (signed'(32'(i_p_x)) - signed'(32'(i_x0))) * (signed'(32'(i_y1)) - signed'(32'(i_y0))) - 
                   (signed'(32'(i_p_y)) - signed'(32'(i_y0))) * (signed'(32'(i_x1)) - signed'(32'(i_x0)));
         
-        w1_comb = (signed'(32'(i_p_x)) - signed'(32'(i_x1))) * (signed'(32'(i_y2)) - signed'(32'(i_y1))) - 
+        w1_raw = (signed'(32'(i_p_x)) - signed'(32'(i_x1))) * (signed'(32'(i_y2)) - signed'(32'(i_y1))) - 
                   (signed'(32'(i_p_y)) - signed'(32'(i_y1))) * (signed'(32'(i_x2)) - signed'(32'(i_x1)));
         
-        w2_comb = (signed'(32'(i_p_x)) - signed'(32'(i_x2))) * (signed'(32'(i_y0)) - signed'(32'(i_y2))) - 
+        w2_raw = (signed'(32'(i_p_x)) - signed'(32'(i_x2))) * (signed'(32'(i_y0)) - signed'(32'(i_y2))) - 
                   (signed'(32'(i_p_y)) - signed'(32'(i_y2))) * (signed'(32'(i_x0)) - signed'(32'(i_x2)));
 
         
-        all_pos = (w0_comb >= 0) && (w1_comb >= 0) && (w2_comb >= 0);
-        all_neg = (w0_comb <= 0) && (w1_comb <= 0) && (w2_comb <= 0);
+        all_pos = (w0_raw >= 0) && (w1_raw >= 0) && (w2_raw >= 0);
+        all_neg = (w0_raw <= 0) && (w1_raw <= 0) && (w2_raw <= 0);
         
         if (all_pos) begin
             // Front Face: Pass through as is
-            o_w0 = w0_comb; o_w1 = w1_comb; o_w2 = w2_comb;
-            o_inside = 1'b1;
+            w0_next = w0_raw; w1_next = w1_raw; w2_next = w2_raw;
+            inside_next = 1'b1;
         end else if (all_neg) begin
             // Back Face: Negate weights to make them Positive
-            o_w0 = -w0_comb; o_w1 = -w1_comb; o_w2 = -w2_comb;
-            o_inside = 1'b1;
+            w0_next = -w0_raw; w1_next = -w1_raw; w2_next = -w2_raw;
+            inside_next = 1'b1;
         end else begin
             // Outside
-            o_w0 = 0; o_w1 = 0; o_w2 = 0; // or don't care
-            o_inside = 1'b0;
+            w0_next = 0; w1_next = 0; w2_next = 0; // or don't care
+            inside_next = 1'b0;
         end
     end
 
@@ -70,16 +70,16 @@ module edge_engine(
             o_inside <= 0;
             o_valid  <= 0;
         end else begin
-            // Pass through the calculation results
-            o_w0     <= w0_comb;
-            o_w1     <= w1_comb;
-            o_w2     <= w2_comb;
+            // Latch the calculated "next" values
+            o_w0     <= w0_next;
+            o_w1     <= w1_next;
+            o_w2     <= w2_next;
             
-            // Only flag 'inside' if the input was valid AND geometry passed
-            o_inside <= inside_comb && i_valid;
+            // Qualify the inside check with the valid flag
+            o_inside <= inside_next && i_valid;
             
-            // Pass valid flag along (used to flush pipeline)
-            o_valid  <= i_valid; 
+            // Pass the pipeline valid flag
+            o_valid  <= i_valid;
         end
     end
 
