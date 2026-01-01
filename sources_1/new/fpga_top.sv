@@ -1,7 +1,8 @@
 `timescale 1ns / 1ps
 
 module fpga_top #(
-    parameter PIXEL_RESET_COUNT = 76800
+    parameter PIXEL_RESET_COUNT = 76800,
+    parameter SKIP_VGA_MODULE = 0
 )(
     input wire clk,
     input wire rst_n,
@@ -257,14 +258,21 @@ module fpga_top #(
     wire clk_25MHz, clk_125MHz;
     wire locked;
 
-    //clock wizard configured with a 1x and 5x clock for HDMI
-    clk_wiz_0 clk_wiz (
-        .clk_out1(clk_25MHz),
-        .clk_out2(clk_125MHz),
-        .reset(rst),
-        .locked(locked),
-        .clk_in1(clk)
-    );
+    if (SKIP_VGA_MODULE == 0) begin
+        //clock wizard configured with a 1x and 5x clock for HDMI
+        clk_wiz_0 clk_wiz (
+            .clk_out1(clk_25MHz),
+            .clk_out2(clk_125MHz),
+            .reset(rst),
+            .locked(locked),
+            .clk_in1(clk)
+        );
+    end else begin
+        // Bypass clock wizard for simulation when skipping VGA module
+        assign clk_25MHz  = clk;
+        assign clk_125MHz = clk;
+        assign locked     = 1;
+    end
     
     // Hsync pulses once per line
     // Vsync pulses once per frame
@@ -286,15 +294,24 @@ module fpga_top #(
                            ((239 - dy_scaled) * 320 + (drawX[9:1])) : 
                            17'd0;
     //VGA Sync signal generator (for 640x480 @60Hz)
-    vga_controller vga (
-        .pixel_clk(clk_25MHz),
-        .reset(rst),
-        .hs(hsync),
-        .vs(vsync),
-        .active_nblank(vde),
-        .drawX(drawX),
-        .drawY(drawY)
-    );    
+    if (SKIP_VGA_MODULE == 0) begin
+        vga_controller vga (
+            .pixel_clk(clk_25MHz),
+            .reset(rst),
+            .hs(hsync),
+            .vs(vsync),
+            .active_nblank(vde),
+            .drawX(drawX),
+            .drawY(drawY)
+        );    
+    end else begin
+        // Dummy VGA signals for simulation when skipping VGA module
+        assign hsync = 0;
+        assign vsync = 0;
+        assign vde   = 1;
+        assign drawX = 0;
+        assign drawY = 0;
+    end  
 
     wire [3:0] red, green, blue;
     // Utilize frame buffer and drawX/drawY to get pixel data

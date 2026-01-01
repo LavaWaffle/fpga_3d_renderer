@@ -45,6 +45,9 @@ module triangle_assembler(
     
     tri_assem_state_t state;
 
+    logic signed [31:0] vec0_x, vec0_y, vec1_x, vec1_y;
+    logic signed [31:0] cross_prod;
+
     always_ff @(posedge i_clk) begin
         if (i_rst) begin
             state <= WAIT_V0;
@@ -101,15 +104,15 @@ module triangle_assembler(
                     o_x2 <= v1_x; o_y2 <= v1_y; o_z2 <= v1_z; o_u2 <= v1_u; o_v2 <= v1_v;
                     o_x1 <= in_x; o_y1 <= in_y; o_z1 <= in_z; o_u1 <= in_u; o_v1 <= in_v;
 
+                    // o_x1 <= v1_x; o_y1 <= v1_y; o_z1 <= v1_z; o_u1 <= v1_u; o_v1 <= v1_v;
+                    // o_x2 <= in_x; o_y2 <= in_y; o_z2 <= in_z; o_u2 <= in_u; o_v2 <= in_v;
+
                     state <= CULL_CHECK;
                 end
 
                 CULL_CHECK: begin
                     // Back-Face Culling: Signed Area
                     // (x1-x0)*(y2-y0) - (x2-x0)*(y1-y0)
-                    
-                    logic signed [31:0] vec0_x, vec0_y, vec1_x, vec1_y;
-                    logic signed [31:0] cross_prod;
                     
                     vec0_x = o_x1 - o_x0;
                     vec0_y = o_y1 - o_y0;

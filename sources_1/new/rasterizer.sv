@@ -244,8 +244,8 @@ module rasterizer(
     // New Chain: s1 -> d1 -> d2 -> d3 -> d4 (Target: Shader)
     // We need 1 extra cycle because of the Texture Read Latency
     
-    reg [16:0] addr_d1, addr_d2, addr_d3, addr_d4, addr_d5;
-    reg [7:0]  zb_data_d1, zb_data_d2, zb_data_d3, zb_data_d4;
+    reg [16:0] addr_d1, addr_d2, addr_d3, addr_d4, addr_d5, addr_d6;
+    reg [7:0]  zb_data_d1, zb_data_d2, zb_data_d3, zb_data_d4, zb_data_d5;
 
     always_ff @(posedge i_clk) begin
         // --- 1. Delay Address (Cycle 1 -> Cycle 4) ---
@@ -254,6 +254,7 @@ module rasterizer(
         addr_d3 <= addr_d2; 
         addr_d4 <= addr_d3; // <--- To Shader (Matches Texture Data arrival)
         addr_d5 <= addr_d4;
+        addr_d6 <= addr_d5;
 
         // --- 2. Delay Z-Buffer Read Data (Cycle 2 -> Cycle 4) ---
         // Z-Buffer Read Issued at T0. Data Arrives at T1 (available at i_zb_r_data).
@@ -263,6 +264,7 @@ module rasterizer(
         zb_data_d2 <= zb_data_d1; // <--- To Shader
         zb_data_d3 <= zb_data_d2;
         zb_data_d4 <= zb_data_d3; 
+        zb_data_d5 <= zb_data_d4;
 
         // --- 3. Pipeline Interpolator Outputs (Wait for Texture) ---
         // Interpolator finishes at T2.
@@ -285,8 +287,8 @@ module rasterizer(
         .i_tex_pixel(tex_data_out), 
 
         // Inputs from Delay Line
-        .i_pixel_addr(addr_d5), 
-        .i_zb_cur_val(zb_data_d4),
+        .i_pixel_addr(addr_d6), 
+        .i_zb_cur_val(zb_data_d5),
 
         // Outputs
         .o_fb_addr(o_fb_addr),

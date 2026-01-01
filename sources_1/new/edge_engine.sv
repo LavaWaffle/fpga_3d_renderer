@@ -64,9 +64,9 @@ module edge_engine(
     // =========================================================================
     always_ff @(posedge i_clk) begin
         if (i_rst) begin
-            // o_w0     <= 0;
-            // o_w1     <= 0;
-            // o_w2     <= 0;
+            o_w0     <= 0;
+            o_w1     <= 0;
+            o_w2     <= 0;
             o_inside <= 0;
             o_valid  <= 0;
         end else begin

@@ -28,10 +28,12 @@ module top_level_tb;
 
     // Instantiate the DUT
     fpga_top #(
-        .PIXEL_RESET_COUNT(10)
+        .PIXEL_RESET_COUNT(10),
+        .SKIP_VGA_MODULE(1)
     ) dut (
         .clk(clk),
         .rst_n(!rst),
+        .skip_reset_buffers(0),
         .start(start),
         .increment_frame(increment_frame),
         .dummy_led()
@@ -68,14 +70,14 @@ module top_level_tb;
     // Geometry Engine Output Monitoring
     always @(posedge clk) begin
         if (dut.gem_engine.o_vertex_valid == 1) begin
-            $display("\n==========================================");
-            $display(" Processing Vertex %0d", vertex_idx);
-            $display("==========================================");
-            $display(" Output X: %f", fixed_to_real_q16_16(dut.gem_engine.o_x));
-            $display(" Output Y: %f", fixed_to_real_q16_16(dut.gem_engine.o_y));
-            $display(" Output Z: %0d", dut.gem_engine.o_z);
-            $display(" Output U: %f", fixed_to_real_q16_16(dut.gem_engine.o_u));
-            $display(" Output V: %f", fixed_to_real_q16_16(dut.gem_engine.o_v));
+//            $display("\n==========================================");
+//            $display(" Processing Vertex %0d", vertex_idx);
+//            $display("==========================================");
+//            $display(" Output X: %f", fixed_to_real_q16_16(dut.gem_engine.o_x));
+//            $display(" Output Y: %f", fixed_to_real_q16_16(dut.gem_engine.o_y));
+//            $display(" Output Z: %0d", dut.gem_engine.o_z);
+//            $display(" Output U: %f", fixed_to_real_q16_16(dut.gem_engine.o_u));
+//            $display(" Output V: %f", fixed_to_real_q16_16(dut.gem_engine.o_v));
             @(posedge clk);
         end
     end
@@ -89,75 +91,75 @@ module top_level_tb;
     // Vertex FIFO Input and Output Monitoring
     always @(posedge clk) begin
         if (dut.fifo_inst.i_we) begin
-            $display(" Vertex FIFO Input - X: %0d, Y: %0d, Z: %0d, U: %0d, V: %0d",
-                     dut.fifo_inst.i_data[103:88],
-                     dut.fifo_inst.i_data[87:72],
-                     dut.fifo_inst.i_data[71:64],
-                     fixed_to_real_q16_16(dut.fifo_inst.i_data[63:32]),
-                     fixed_to_real_q16_16(dut.fifo_inst.i_data[31:0]));
+//            $display(" Vertex FIFO Input - X: %0d, Y: %0d, Z: %0d, U: %0d, V: %0d",
+//                     dut.fifo_inst.i_data[103:88],
+//                     dut.fifo_inst.i_data[87:72],
+//                     dut.fifo_inst.i_data[71:64],
+//                     fixed_to_real_q16_16(dut.fifo_inst.i_data[63:32]),
+//                     fixed_to_real_q16_16(dut.fifo_inst.i_data[31:0]));
         end
         if (dut.fifo_inst.i_re) begin
-            $display(" Vertex FIFO Output - X: %0d, Y: %0d, Z: %0d, U: %0d, V: %0d",
-                     dut.fifo_inst.o_data[103:88],
-                     dut.fifo_inst.o_data[87:72],
-                     dut.fifo_inst.o_data[71:64],
-                     fixed_to_real_q16_16(dut.fifo_inst.o_data[63:32]),
-                     fixed_to_real_q16_16(dut.fifo_inst.o_data[31:0]));
+//            $display(" Vertex FIFO Output - X: %0d, Y: %0d, Z: %0d, U: %0d, V: %0d",
+//                     dut.fifo_inst.o_data[103:88],
+//                     dut.fifo_inst.o_data[87:72],
+//                     dut.fifo_inst.o_data[71:64],
+//                     fixed_to_real_q16_16(dut.fifo_inst.o_data[63:32]),
+//                     fixed_to_real_q16_16(dut.fifo_inst.o_data[31:0]));
         end
     end
 
     // Triangle Assembler Input and Output Monitoring
     always @(posedge clk) begin
         if (!dut.triangle_assembler_instance.i_fifo_empty && dut.triangle_assembler_instance.o_fifo_read) begin
-            $display(" Triangle Assembler Input - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d",
-                     dut.triangle_assembler_instance.i_fifo_data[103:88],
-                     dut.triangle_assembler_instance.i_fifo_data[87:72],
-                     dut.triangle_assembler_instance.i_fifo_data[71:64],
-                     fixed_to_real_q16_16(dut.triangle_assembler_instance.i_fifo_data[63:32]),
-                     fixed_to_real_q16_16(dut.triangle_assembler_instance.i_fifo_data[31:0]));
+//            $display(" Triangle Assembler Input - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d @ %t",
+//                     dut.triangle_assembler_instance.i_fifo_data[103:88],
+//                     dut.triangle_assembler_instance.i_fifo_data[87:72],
+//                     dut.triangle_assembler_instance.i_fifo_data[71:64],
+//                     fixed_to_real_q16_16(dut.triangle_assembler_instance.i_fifo_data[63:32]),
+//                     fixed_to_real_q16_16(dut.triangle_assembler_instance.i_fifo_data[31:0]), $time);
         end
         if (dut.triangle_assembler_instance.o_tri_valid && dut.rasterizer_instance.o_busy == 0) begin
-            $display(" Triangle Assembler Output - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d",
-                     dut.triangle_assembler_instance.o_x0,
-                     dut.triangle_assembler_instance.o_y0,
-                     dut.triangle_assembler_instance.o_z0,
-                     fixed_to_real_q16_16(dut.triangle_assembler_instance.o_u0),
-                     fixed_to_real_q16_16(dut.triangle_assembler_instance.o_v0));
+//            $display(" Triangle Assembler Output - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d @ %t \n\n",
+//                     dut.triangle_assembler_instance.o_x0,
+//                     dut.triangle_assembler_instance.o_y0,
+//                     dut.triangle_assembler_instance.o_z0,
+//                     fixed_to_real_q16_16(dut.triangle_assembler_instance.o_u0),
+//                     fixed_to_real_q16_16(dut.triangle_assembler_instance.o_v0), $time);
         end
     end
 
     // Rasterizer Input Monitoring
     always @(posedge clk) begin
         if (dut.rasterizer_instance.i_tri_valid && dut.rasterizer_instance.o_busy == 0) begin
-            $display(" Rasterizer Input - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d",
-                     dut.rasterizer_instance.i_x0,
-                     dut.rasterizer_instance.i_y0,
-                     dut.rasterizer_instance.i_z0,
-                     dut.rasterizer_instance.i_u0,
-                     dut.rasterizer_instance.i_v0);
+//            $display(" Rasterizer Input - X0: %0d, Y0: %0d, Z0: %0d, U0: %0d, V0: %0d",
+//                     dut.rasterizer_instance.i_x0,
+//                     dut.rasterizer_instance.i_y0,
+//                     dut.rasterizer_instance.i_z0,
+//                     dut.rasterizer_instance.i_u0,
+//                     dut.rasterizer_instance.i_v0);
             // second triangle
-            $display(" Rasterizer Input - X1: %0d, Y1: %0d, Z1: %0d, U1: %0d, V1: %0d",
-                     dut.rasterizer_instance.i_x1,
-                     dut.rasterizer_instance.i_y1,
-                     dut.rasterizer_instance.i_z1,
-                     dut.rasterizer_instance.i_u1,
-                     dut.rasterizer_instance.i_v1);
-            $display(" Rasterizer Input - X2: %0d, Y2: %0d, Z2: %0d, U2: %0d, V2: %0d",
-                     dut.rasterizer_instance.i_x2,
-                     dut.rasterizer_instance.i_y2,
-                     dut.rasterizer_instance.i_z2,
-                     dut.rasterizer_instance.i_u2,
-                     dut.rasterizer_instance.i_v2);
+//            $display(" Rasterizer Input - X1: %0d, Y1: %0d, Z1: %0d, U1: %0d, V1: %0d",
+//                     dut.rasterizer_instance.i_x1,
+//                     dut.rasterizer_instance.i_y1,
+//                     dut.rasterizer_instance.i_z1,
+//                     dut.rasterizer_instance.i_u1,
+//                     dut.rasterizer_instance.i_v1);
+//            $display(" Rasterizer Input - X2: %0d, Y2: %0d, Z2: %0d, U2: %0d, V2: %0d",
+//                     dut.rasterizer_instance.i_x2,
+//                     dut.rasterizer_instance.i_y2,
+//                     dut.rasterizer_instance.i_z2,
+//                     dut.rasterizer_instance.i_u2,
+//                     dut.rasterizer_instance.i_v2);
         end
     end
 
     // Rast Start End Monitoring
     always @(posedge clk) begin
         wait (dut.rasterizer_instance.o_busy == 1) begin
-            $display(" Rasterizer Busy Started at time %t", $time);
+//            $display(" Rasterizer Busy Started at time %t", $time);
         end
         wait (dut.rasterizer_instance.o_busy == 0) begin
-            $display(" Rasterizer Busy Ended at time %t", $time);
+//            $display(" Rasterizer Busy Ended at time %t", $time);
         end
     end
 
@@ -189,23 +191,22 @@ module top_level_tb;
         if (dut.fb_we) begin    
             // --- LOGGING ---
             // Note: Accessed via 'dut.stage4_shader.i_p_u' because signals are inside submodules now
-            // $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | zbufdata=%h | P: u=%h, v=%h z=%h", 
-            //          $time, 
-            //          dut.fb_addr, 
-            //          dut.fb_addr % 320, // Extract X
-            //          dut.fb_addr / 320, // Extract Y
-            //          dut.fb_pixel, 
-            //          dut.rasterizer_instance.stage4_shader.i_zb_cur_val,
-            //          dut.rasterizer_instance.stage4_shader.i_p_u, 
-            //          dut.rasterizer_instance.stage4_shader.i_p_v,
-            //          dut.rasterizer_instance.stage4_shader.i_p_z
-            // );
+//            $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | zbufdata=%h | TextAddr: addr=%h, z=%h", 
+//                     $time, 
+//                     dut.fb_addr, 
+//                     dut.fb_addr % 320, // Extract X
+//                     dut.fb_addr / 320, // Extract Y
+//                     dut.fb_pixel, 
+//                     dut.rasterizer_instance.stage4_shader.i_zb_cur_val,
+//                     dut.rasterizer_instance.tex_addr,
+//                     dut.rasterizer_instance.stage4_shader.i_p_z
+//            );
         end
         if (dut.zb_we) begin
-            // $display("[ZB WRITE] Time: %0t | Addr: %0d | Data: %0d", 
-            //          $time, 
-            //          dut.zb_w_addr, 
-            //          dut.zb_w_data);
+//             $display("[ZB WRITE] Time: %0t | Addr: %0d | Data: %0d", 
+//                      $time, 
+//                      dut.zb_w_addr, 
+//                      dut.zb_w_data);
         end
     end
 
@@ -289,7 +290,8 @@ module top_level_tb;
                     // Wait for it to finish
                     wait(dut.rasterizer_instance.o_busy == 0 && 
                     dut.rasterizer_fifo_empty == 1 && 
-                    dut.triangle_assembler_instance.o_tri_valid == 0);
+                    dut.triangle_assembler_instance.o_tri_valid == 0 &&
+                    dut.state == dut.T_IDLE);
                     $display("Rasterizer Busy Ended at time %t", $time);
                 end
                 begin
@@ -301,15 +303,18 @@ module top_level_tb;
                     #(5us);
                     wait (dut.rasterizer_instance.o_busy == 0 && 
                           dut.rasterizer_fifo_empty == 1 && 
-                          dut.triangle_assembler_instance.o_tri_valid == 0);
+                          dut.triangle_assembler_instance.o_tri_valid == 0 &&
+                          dut.state == dut.T_IDLE);
                     #(5us);
                     wait (dut.rasterizer_instance.o_busy == 0 && 
                           dut.rasterizer_fifo_empty == 1 && 
-                          dut.triangle_assembler_instance.o_tri_valid == 0);
+                          dut.triangle_assembler_instance.o_tri_valid == 0 &&
+                          dut.state == dut.T_IDLE);
                     #(5us);
                     wait (dut.rasterizer_instance.o_busy == 0 && 
                           dut.rasterizer_fifo_empty == 1 && 
-                          dut.triangle_assembler_instance.o_tri_valid == 0);
+                          dut.triangle_assembler_instance.o_tri_valid == 0 &&
+                          dut.state == dut.T_IDLE);
                     $display("No triangles to render %t", $time);
                 end
             join_any

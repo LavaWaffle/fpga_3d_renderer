@@ -227,15 +227,15 @@ module geometry_engine (
                     if (div_x_done_i && div_y_done_i && div_z_done_i) begin
                         // Check Clipping (Simple Near Plane check)
                         // If W < Near_Plane (0.1 in fixed point ~ 6553), point is behind camera
-                        if (w_clip_i < 32'h00001999) begin 
+                        // if (w_clip_i < 32'h00001999) begin 
                             // Invalid! Skip to next vertex immediately
-                            state_i <= S_VERTEX_AND_MATRIX_FETCH;
+                            // state_i <= S_VERTEX_AND_MATRIX_FETCH;
                             // Note: You need logic to handle "partial" triangles later, 
                             // but for now we just drop bad vertices.
-                        end else begin
+                        // end else begin
                             // Valid! Move to Viewport Map
                             state_i <= S_VIEWPORT_MAP;
-                        end
+                        // end
                     end
                 end
                 S_VIEWPORT_MAP: begin
