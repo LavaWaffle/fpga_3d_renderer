@@ -5,13 +5,15 @@ module fpga_top #(
     parameter SKIP_VGA_MODULE = 0
 )(
     input wire clk,
-    input wire rst_n,
+//    input wire rst_n,
     
-    input wire start,
-    input wire increment_frame,
-    input wire skip_reset_buffers,
+//    input wire start,
+//    input wire increment_frame,
+//    input wire skip_reset_buffers,
 
-    output reg dummy_led,
+    input wire [3:0] btn,
+
+    output reg [15:0] led,
     
     //HDMI
     output logic hdmi_tmds_clk_n,
@@ -19,7 +21,24 @@ module fpga_top #(
     output logic [2:0]hdmi_tmds_data_n,
     output logic [2:0]hdmi_tmds_data_p
 );
-    wire rst = !rst_n;
+
+    wire [3:0] btn_sync;
+
+    sync_debounce button_sync [3:0] (
+        .clk (clk),
+        .d   (btn),
+        .q   (btn_sync)
+    );
+
+    wire rst = btn_sync[0];
+    wire start_rendering_frame = btn_sync[1];
+    wire increment_frame = btn_sync[2];
+    wire skip_reset_buffers = btn_sync[3];
+    
+    assign led[12] = rst;
+    assign led[13] = start_rendering_frame;
+    assign led[14] = increment_frame;
+    assign led[15] = skip_reset_buffers;
 
     typedef enum {
         T_IDLE,
@@ -33,8 +52,11 @@ module fpga_top #(
     reg [3:0] min_rendering_time;
 
     always_ff @(posedge clk) begin
+        led[0] <= 1'b0;
+        led[1] <= 1'b0;
         if (rst) begin
-            state <= skip_reset_buffers ? T_IDLE : T_RESETING_BUFFERS;
+//            state <= skip_reset_buffers ? T_IDLE : T_RESETING_BUFFERS;
+            state <= T_RESETING_BUFFERS;
             render_modules_enabled <= 0;
             fb_zb_reset_addr <= 0;
             min_rendering_time <= 0;
@@ -51,13 +73,15 @@ module fpga_top #(
                     end
                 end
                 T_IDLE: begin
-                    if (start) begin
+                    led[1] <= 1'b1;
+                    if (start_rendering_frame) begin
                         state <= T_RENDERING;
                         render_modules_enabled <= 1;
                         min_rendering_time <= 0;
                     end
                 end
                 T_RENDERING: begin
+                    led[0] <= 1'b1;
                     render_modules_enabled <= 1;
                     if (min_rendering_time != 4'b1111) begin
                         min_rendering_time <= min_rendering_time + 1;
@@ -88,7 +112,7 @@ module fpga_top #(
         .i_rst (rst),
 
         .i_enabled(render_modules_enabled),
-        .i_start(start),
+        .i_start(start_rendering_frame),
         .i_increment_frame(increment_frame),
         .i_vertex_fifo_full(fifo_full),
 
