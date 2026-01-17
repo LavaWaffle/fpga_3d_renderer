@@ -98,7 +98,7 @@ module top_level_tb_complete;
         #100;
 
         // --- Wait for DUT Initialization ---
-        wait (dut.state == dut.T_IDLE);
+        wait (dut.top_state == dut.T_RENDER_IDLE);
         $display("DUT Initialized and Idle.");
 
         // --- Trigger Render ---
@@ -111,8 +111,8 @@ module top_level_tb_complete;
         $display("Render Started...");
 
         // --- Wait for Render Completion ---
-        wait (dut.state == dut.T_RENDERING);
-        wait (dut.state == dut.T_IDLE);
+        wait (dut.top_state == dut.T_RENDERING);
+        wait (dut.top_state == dut.T_RENDER_IDLE);
         
         $display("Render Complete! Starting Phase 1: Internal Memory Dump... (At T= %0t)", $time);
 

@@ -31,19 +31,19 @@ module fpga_top #(
         .q   (btn_sync)
     );
 
+    // Input Signals
     wire rst = btn_sync[0];
     wire pause = btn_sync[1];
     reg prev_pause;
     reg pause_reg;
-    reg start_rendering_frame; // = btn_sync[1];
-    reg increment_frame; // = btn_sync[2];
-    wire skip_reset_buffers; // = btn_sync[3];
+
+    reg start_rendering_frame;
+    reg increment_frame; 
     
     assign led[11] = pause_reg;
     assign led[12] = rst;
     assign led[13] = start_rendering_frame;
     assign led[14] = increment_frame;
-    assign led[15] = skip_reset_buffers;
 
     wire frame_strobe;
 
@@ -52,9 +52,9 @@ module fpga_top #(
     ) refresh_strobes_inst (
         .clk(clk),
         .rst(rst),
-        .strb_60(frame_strobe),
+        .strb_60(),
         .strb_30(),
-        .strb_15()   
+        .strb_15(frame_strobe)   
     );
 
     wire stretch_frame_strobe;
@@ -81,14 +81,14 @@ module fpga_top #(
     );
 
     typedef enum {
-        T_IDLE,
-        T_RENDERING,
-        T_RESETING_BUFFERS,
-        T_POST_IDLE,
-        T_FAST_RESET_BUFFERS
+        T_INIT_RST_BUFFERS,
+        T_CLEAR_IDLE,
+        T_CLR_BUFFERS,
+        T_RENDER_IDLE,
+        T_RENDERING
     } top_state_t;
 
-    top_state_t state;
+    top_state_t top_state;
     reg render_modules_enabled;
     reg [16:0] fb_zb_reset_addr;
     reg [3:0] min_rendering_time;
@@ -96,7 +96,7 @@ module fpga_top #(
     hex_driver state_display (
         .clk(clk),
         .reset(rst),
-        .in({4'b0, 4'b0, 4'b0, state[3:0]}), 
+        .in({4'b0, 4'b0, 4'b0, top_state[3:0]}), 
         .hex_seg(hex_segA),
         .hex_grid(hex_gridA)
     );
@@ -109,7 +109,7 @@ module fpga_top #(
         prev_pause <= pause;
         if (rst) begin
 //            state <= skip_reset_buffers ? T_IDLE : T_RESETING_BUFFERS;
-            state <= T_RESETING_BUFFERS;
+            top_state <= T_INIT_RST_BUFFERS;
             render_modules_enabled <= 0;
             fb_zb_reset_addr <= 0;
             min_rendering_time <= 0;
@@ -123,32 +123,62 @@ module fpga_top #(
             start_rendering_frame <= 0;
             render_modules_enabled <= 0;
             increment_frame <= 0;
-            case (state)
-                T_RESETING_BUFFERS: begin
+
+            case (top_state)
+                T_INIT_RST_BUFFERS: begin
                     render_modules_enabled <= 0;
 
                     if (fb_zb_reset_addr == PIXEL_RESET_COUNT - 1) begin
-                        state <= T_IDLE;
+                        top_state <= T_CLEAR_IDLE;
                     end else begin
                         fb_zb_reset_addr <= fb_zb_reset_addr + 1;
                     end
                 end
-                T_IDLE: begin
-                    led[1] <= 1'b1;
+
+                // Clear previous frame's data before rendering a new one
+                T_CLEAR_IDLE: begin
+                    led[3] <= 1'b1;
+
+                    // In simulation, proceed immediately for faster testing
                     `ifdef SYNTHESIS
-                    if (stretch_frame_strobe) begin
-                        state <= T_RENDERING;
+                    if (stretch_frame_strobe && !pause_reg) 
+                    `else
+                    if (!pause_reg)
+                    `endif
+                    begin
+                        top_state <= T_CLR_BUFFERS;
                         render_modules_enabled <= 1;
                         start_rendering_frame <= 1;
                         min_rendering_time <= 0;
                     end
-                    `else
-                    // In simulation, start rendering immediately for faster testing
-                    state <= T_RENDERING;
+                end
+                T_CLR_BUFFERS: begin
                     render_modules_enabled <= 1;
-                    start_rendering_frame <= 1;
-                    min_rendering_time <= 0;
-                    `endif
+                    if (min_rendering_time != 4'b1111) begin
+                        min_rendering_time <= min_rendering_time + 1;
+                    end
+
+                    if (rasterizer_busy == 0 && 
+                        rasterizer_fifo_empty == 1 &&
+                        triangle_assembler_data_valid == 0 &&
+                        min_rendering_time == 4'b1111 &&
+                        gem_busy == 0
+                    ) begin
+                        increment_frame <= 1; // Advance frame count after clearing
+                        top_state <= T_RENDER_IDLE;
+                    end
+                end
+
+                // In between state to init real rendering
+                T_RENDER_IDLE: begin
+                    led[1] <= 1'b1;
+
+                    begin
+                        top_state <= T_RENDERING;
+                        render_modules_enabled <= 1;
+                        start_rendering_frame <= 1;
+                        min_rendering_time <= 0;
+                    end
                 end
                 T_RENDERING: begin
                     led[0] <= 1'b1;
@@ -156,6 +186,7 @@ module fpga_top #(
                     if (min_rendering_time != 4'b1111) begin
                         min_rendering_time <= min_rendering_time + 1;
                     end
+
                     // Wait for the entire render pipeline to finish
                     if (rasterizer_busy == 0 && 
                         rasterizer_fifo_empty == 1 &&
@@ -163,44 +194,10 @@ module fpga_top #(
                         min_rendering_time == 4'b1111 &&
                         gem_busy == 0
                     ) begin
-                        state <= T_POST_IDLE;
+                        top_state <= T_CLEAR_IDLE;
                     end
                 end
-                T_POST_IDLE: begin
-                    led[3] <= 1'b1;
-                    `ifdef SYNTHESIS
-                    if (stretch_frame_strobe && !pause_reg) begin
-                        state <= T_FAST_RESET_BUFFERS;
-                        render_modules_enabled <= 1;
-                        start_rendering_frame <= 1;
-                        min_rendering_time <= 0;
-                    end
-                    `else
-                    // In simulation, proceed immediately for faster testing
-                    if (!pause_reg) begin
-                        state <= T_FAST_RESET_BUFFERS;
-                        render_modules_enabled <= 1;
-                        start_rendering_frame <= 1;
-                        min_rendering_time <= 0;
-                    end
-                    `endif
-                end
-                // Do the exact render process. We will cut in the writes to the buffers and store 0
-                T_FAST_RESET_BUFFERS: begin
-                    render_modules_enabled <= 1;
-                    if (min_rendering_time != 4'b1111) begin
-                        min_rendering_time <= min_rendering_time + 1;
-                    end
-                    if (rasterizer_busy == 0 && 
-                        rasterizer_fifo_empty == 1 &&
-                        triangle_assembler_data_valid == 0 &&
-                        min_rendering_time == 4'b1111 &&
-                        gem_busy == 0
-                    ) begin
-                        increment_frame <= 1;
-                        state <= T_IDLE;
-                    end
-                end
+                
             endcase
         end
     end
@@ -320,9 +317,9 @@ module fpga_top #(
     );
 
     // Frame Buffer Muxing (Reset vs Rasterizer)
-    wire [16:0] fb_addr  = (state == T_RESETING_BUFFERS) ? fb_zb_reset_addr : rast_fb_addr;
-    wire fb_we           = ((state == T_RESETING_BUFFERS) || (state == T_FAST_RESET_BUFFERS)) ? 1 : rast_fb_we;
-    wire [11:0] fb_pixel = ((state == T_RESETING_BUFFERS) || (state == T_FAST_RESET_BUFFERS)) ? 12'h000 : rast_fb_pixel;
+    wire [16:0] fb_addr  = (top_state == T_INIT_RST_BUFFERS) ? fb_zb_reset_addr : rast_fb_addr;
+    wire fb_we           = ((top_state == T_INIT_RST_BUFFERS) || (top_state == T_CLR_BUFFERS)) ? 1 : rast_fb_we;
+    wire [11:0] fb_pixel = ((top_state == T_INIT_RST_BUFFERS) || (top_state == T_CLR_BUFFERS)) ? 12'h000 : rast_fb_pixel;
 
     parameter DEPTH = 76800; // 320x240
 
@@ -354,16 +351,16 @@ module fpga_top #(
     // 1. Create the Write Address Mux
     // If resetting: use the reset counter.
     // If rendering: use the Rasterizer's WRITE address (where it wants to save the new Z).
-    wire [16:0] zb_w_addr = (state == T_RESETING_BUFFERS) ? fb_zb_reset_addr : rast_zb_w_addr;
+    wire [16:0] zb_w_addr = (top_state == T_INIT_RST_BUFFERS) ? fb_zb_reset_addr : rast_zb_w_addr;
 
     // 2. Create the Write Data/Enable Mux (Same as before)
-    wire zb_we            = (state == T_RESETING_BUFFERS || state == T_FAST_RESET_BUFFERS) ? 1'b1 : rast_zb_we;
-    wire [7:0] zb_w_data  = (state == T_RESETING_BUFFERS || state == T_FAST_RESET_BUFFERS) ? 8'hFF : rast_o_zb_i_data;
+    wire zb_we            = (top_state == T_INIT_RST_BUFFERS || top_state == T_CLR_BUFFERS) ? 1'b1 : rast_zb_we;
+    wire [7:0] zb_w_data  = (top_state == T_INIT_RST_BUFFERS || top_state == T_CLR_BUFFERS) ? 8'hFF : rast_o_zb_i_data;
 
     // 3. Create the Read Address Mux
     // The reset logic doesn't strictly need to read, but we can tie it to the reset addr.
     // The Rasterizer needs to read to check depth (rast_zb_r_addr).
-    wire [16:0] zb_r_addr = (state == T_RESETING_BUFFERS) ? fb_zb_reset_addr : rast_zb_r_addr;
+    wire [16:0] zb_r_addr = (top_state == T_INIT_RST_BUFFERS) ? fb_zb_reset_addr : rast_zb_r_addr;
 
     // 4. Instantiate the Dual Port RAM
     simple_dual_port_bram #(

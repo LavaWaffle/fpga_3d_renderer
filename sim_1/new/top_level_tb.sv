@@ -45,7 +45,7 @@ module top_level_tb;
     // Instant BRAM Clear on Reset (B/c of the whole pixel reset count = 10 thing)
     always @(posedge clk) begin
         // Detect when the DUT enters the reset state
-        if (dut.state == dut.T_RESETING_BUFFERS) begin
+        if (dut.top_state == dut.T_INIT_RST_BUFFERS) begin
             // Use hierarchical reference to force-write the internal BRAM arrays
             // This happens in 0 simulation time!
             
@@ -58,7 +58,7 @@ module top_level_tb;
             $display("TB INFO: Instantly cleared BRAMs via backdoor at time %t", $time);
             
             // Wait until the state exits so we don't clear repeatedly
-            wait(dut.state != dut.T_RESETING_BUFFERS);
+            wait(dut.top_state != dut.T_INIT_RST_BUFFERS);
         end
     end
 
@@ -237,18 +237,42 @@ module top_level_tb;
         #500;
         rst = 0;
 
+        // Ensure DUT is paused initially
+        #10;
+        pause = 1;
+        #500;
+        pause = 0;
+        #500;
+
         for (frame_count = 0; frame_count < 64; frame_count = frame_count + 1) begin
             $display("\n---------------------------------");
             $display("FRAME %0d", frame_count);
             $display("---------------------------------\n");
             
+            // Unpause the DUT to allow rendering
             pause = 1;
+            #500;
+            pause = 0;
+            #500;
 
+            // Toggle Pause Off to allow clearing
             // 3. Wait till exit T_RENDERING state
-            wait (dut.state == dut.T_IDLE || dut.state == dut.T_RENDERING);
+            wait (dut.top_state == dut.T_CLEAR_IDLE || dut.top_state == dut.T_CLR_BUFFERS);
 
+            $display("TB INFO: Entered CLR IDLE state at time %t", $time);
+            wait (dut.top_state == dut.T_RENDER_IDLE);
+            $display("TB INFO: Exited CLR Rendering state at time %t", $time);
+
+
+            wait (dut.top_state == dut.T_RENDERING);
             $display("TB INFO: Entered RENDERING state at time %t", $time);
-            wait (dut.state == dut.T_POST_IDLE);
+
+            // Toggle pause to On to hold before clearing next frame (does not stop rendering)
+            pause = 1;
+            #500;
+            pause = 0;
+
+            wait (dut.top_state != dut.T_RENDERING);
             $display("TB INFO: Exited RENDERING state at time %t", $time);
 
             // Dump Frame Buffer to PPM file
@@ -273,16 +297,6 @@ module top_level_tb;
 
             $fclose(fd);
             $display("Output image written to %s", filename);
-            
-            pause = 0;
-            #500;
-            pause = 1;
-            #500;
-            pause = 0;
-            wait (dut.state == dut.T_FAST_RESET_BUFFERS);
-            $display("TB INFO: Entered FAST_RESET_BUFFERS state at time %t", $time);
-
-
             
 
         end
