@@ -207,6 +207,9 @@ module top_level_tb;
     integer frame_count;
     string filename;
     integer fc_i;
+
+    string tfd_filename;
+    integer tfd;
     initial begin
         $display("--- SIMULATION START ---");
 
@@ -231,6 +234,10 @@ module top_level_tb;
         end else begin
             $readmemh("z_buffer_init.mem", dut.z_buffer.ram);
         end
+
+        tfd_filename = "output_timing.csv";
+        tfd = $fopen(tfd_filename, "w");
+        $fwrite(tfd, "CLR_START, CLR_END, REND_START, REND_END\n");
 
         rst = 1;
         pause = 0;
@@ -260,12 +267,15 @@ module top_level_tb;
             wait (dut.top_state == dut.T_CLEAR_IDLE || dut.top_state == dut.T_CLR_BUFFERS);
 
             $display("TB INFO: Entered CLR IDLE state at time %t", $time);
+            $fwrite(tfd, "%t,", $time);
             wait (dut.top_state == dut.T_RENDER_IDLE);
             $display("TB INFO: Exited CLR Rendering state at time %t", $time);
-
+            $fwrite(tfd, "%t,", $time);
+            
 
             wait (dut.top_state == dut.T_RENDERING);
             $display("TB INFO: Entered RENDERING state at time %t", $time);
+            $fwrite(tfd, "%t,", $time);
 
             // Toggle pause to On to hold before clearing next frame (does not stop rendering)
             pause = 1;
@@ -274,6 +284,7 @@ module top_level_tb;
 
             wait (dut.top_state != dut.T_RENDERING);
             $display("TB INFO: Exited RENDERING state at time %t", $time);
+            $fwrite(tfd, "%t\n", $time);
 
             // Dump Frame Buffer to PPM file
             filename = $sformatf("output_image-%02d.ppm", frame_count);
@@ -297,9 +308,10 @@ module top_level_tb;
 
             $fclose(fd);
             $display("Output image written to %s", filename);
-            
-
         end
+
+        $fclose(tfd);
+        $display("Output timing saved to %s", tfd_filename);
 
         $display("--- SIMULATION END ---");
         $finish;
