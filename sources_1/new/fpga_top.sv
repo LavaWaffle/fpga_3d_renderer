@@ -6,62 +6,78 @@ module fpga_top #(
 )(
     input wire clk,
 
+    // Basic I/O
     input wire [3:0] btn,
-
+    input logic [15:0] sw_i,
     output reg [15:0] led,
-    
-    //HDMI
-    output logic hdmi_tmds_clk_n,
-    output logic hdmi_tmds_clk_p,
-    output logic [2:0]hdmi_tmds_data_n,
-    output logic [2:0]hdmi_tmds_data_p,
     
     //HEX displays
     output logic [7:0] hex_segA,
     output logic [3:0] hex_gridA,
     output logic [7:0] hex_segB,
-    output logic [3:0] hex_gridB
+    output logic [3:0] hex_gridB,
+
+    //HDMI
+    output logic hdmi_tmds_clk_n,
+    output logic hdmi_tmds_clk_p,
+    output logic [2:0]hdmi_tmds_data_n,
+    output logic [2:0]hdmi_tmds_data_p
+
 );
 
+    // Input debouncing
     wire [3:0] btn_sync;
-
     sync_debounce button_sync [3:0] (
         .clk (clk),
         .d   (btn),
         .q   (btn_sync)
     );
 
-    // Input Signals
+    wire [15:0] switch;
+    sync_flop sw_sync [15:0] (
+        .clk	(clk),
+        .d		(sw_i),
+    
+        .q		(switch)
+    );	
+
+    // Main Btn Inputs
     wire rst = btn_sync[0];
     wire pause = btn_sync[1];
     reg prev_pause;
     reg pause_reg;
+    assign led[14] = pause_reg;
+    assign led[15] = rst;
 
-    reg start_rendering_frame;
-    reg increment_frame; 
-    
-    assign led[11] = pause_reg;
-    assign led[12] = rst;
-    assign led[13] = start_rendering_frame;
-    assign led[14] = increment_frame;
 
-    wire frame_strobe;
-
+    wire strb_60, strb_30, strb_15, strb_10, strb_5, strb_1;
     refresh_strobes #(
         .CLK_HZ(100_000_000)
     ) refresh_strobes_inst (
         .clk(clk),
         .rst(rst),
-        .strb_60(),
-        .strb_30(),
-        .strb_15(frame_strobe)   
+        .strb_60(strb_60),
+        .strb_30(strb_30),
+        .strb_15(strb_15),
+        .strb_10(strb_10),
+        .strb_5(strb_5),
+        .strb_1(strb_1)
     );
+    
+    // Priority Mux for frame strobe based on switches
+    wire frame_strobe = 
+        (switch[0] == 1'b1) ? strb_1 :
+        (switch[1] == 1'b1) ? strb_5 :
+        (switch[2] == 1'b1) ? strb_10 :
+        (switch[3] == 1'b1) ? strb_15 :
+        (switch[4] == 1'b1) ? strb_30 :
+                             strb_60 ;
 
     wire stretch_frame_strobe;
     strobe_stretcher #(
         .CLK_HZ(100_000_000),
         .STRETCH_MS(1)
-    ) strobe_stretcher_instance (
+    ) frame_strobe_stretcher (
         .clk(clk),
         .rst(rst),
         .strobe_in(frame_strobe),
@@ -100,6 +116,35 @@ module fpga_top #(
         .hex_seg(hex_segA),
         .hex_grid(hex_gridA)
     );
+    
+    // Debug Signals
+    reg start_rendering_frame;
+    wire start_rendering_frame_stretched;
+    reg increment_frame; 
+    wire increment_frame_stretched;
+    
+    strobe_stretcher #(
+        .CLK_HZ(100_000_000),
+        .STRETCH_MS(5)
+    ) start_rendering_frame_stretcher (
+        .clk(clk),
+        .rst(rst),
+        .strobe_in(start_rendering_frame),
+        .stretched_out(start_rendering_frame_stretched)
+    );
+
+    strobe_stretcher #(
+        .CLK_HZ(100_000_000),
+        .STRETCH_MS(5)
+    ) increment_frame_stretcher (
+        .clk(clk),
+        .rst(rst),
+        .strobe_in(increment_frame),
+        .stretched_out(increment_frame_stretched)
+    );
+
+    assign led[12] = start_rendering_frame_stretched;
+    assign led[13] = increment_frame_stretched;
 
     always_ff @(posedge clk) begin
         led[0] <= 1'b0;
@@ -141,7 +186,7 @@ module fpga_top #(
 
                     // In simulation, proceed immediately for faster testing
                     `ifdef SYNTHESIS
-                    if (stretch_frame_strobe && !pause_reg) 
+                    if (frame_strobe && !pause_reg) 
                     `else
                     if (!pause_reg)
                     `endif
