@@ -23,8 +23,7 @@
 module top_level_tb;
     reg clk;
     reg rst;
-    reg start;
-    reg increment_frame;
+    reg pause;
 
     // Instantiate the DUT
     fpga_top #(
@@ -32,11 +31,9 @@ module top_level_tb;
         .SKIP_VGA_MODULE(1)
     ) dut (
         .clk(clk),
-        .rst_n(!rst),
-        .skip_reset_buffers(0),
-        .start(start),
-        .increment_frame(increment_frame),
-        .dummy_led()
+        .btn({
+            0,0,pause,rst
+        })
     );
 
     // Clock Generation (100 MHz)
@@ -178,12 +175,6 @@ module top_level_tb;
             fixed_to_real_q16_16 = real'(val) / 65536.0;
         end
     endfunction
-
-    integer vertex_idx;
-
-    // =========================================================================
-    // 2. Memory Models (The "Virtual Screen")
-    // =========================================================================
     
     always @(posedge clk) begin
 
@@ -191,22 +182,22 @@ module top_level_tb;
         if (dut.fb_we) begin    
             // --- LOGGING ---
             // Note: Accessed via 'dut.stage4_shader.i_p_u' because signals are inside submodules now
-//            $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | zbufdata=%h | TextAddr: addr=%h, z=%h", 
-//                     $time, 
-//                     dut.fb_addr, 
-//                     dut.fb_addr % 320, // Extract X
-//                     dut.fb_addr / 320, // Extract Y
-//                     dut.fb_pixel, 
-//                     dut.rasterizer_instance.stage4_shader.i_zb_cur_val,
-//                     dut.rasterizer_instance.tex_addr,
-//                     dut.rasterizer_instance.stage4_shader.i_p_z
-//            );
+        //    $display("[FB WRITE] Time: %0t | Addr: %0d (X:%3d, Y:%3d) | Pixel: %h | zbufdata=%h | TextAddr: addr=%h, z=%h", 
+        //             $time, 
+        //             dut.fb_addr, 
+        //             dut.fb_addr % 320, // Extract X
+        //             dut.fb_addr / 320, // Extract Y
+        //             dut.fb_pixel, 
+        //             dut.rasterizer_instance.stage4_shader.i_zb_cur_val,
+        //             dut.rasterizer_instance.tex_addr,
+        //             dut.rasterizer_instance.stage4_shader.i_p_z
+        //    );
         end
         if (dut.zb_we) begin
-//             $display("[ZB WRITE] Time: %0t | Addr: %0d | Data: %0d", 
-//                      $time, 
-//                      dut.zb_w_addr, 
-//                      dut.zb_w_data);
+            // $display("[ZB WRITE] Time: %0t | Addr: %0d | Data: %0d", 
+            //          $time, 
+            //          dut.zb_w_addr, 
+            //          dut.zb_w_data);
         end
     end
 
@@ -241,87 +232,24 @@ module top_level_tb;
             $readmemh("z_buffer_init.mem", dut.z_buffer.ram);
         end
 
+        rst = 1;
+        pause = 0;
+        #500;
+        rst = 0;
+
         for (frame_count = 0; frame_count < 64; frame_count = frame_count + 1) begin
             $display("\n---------------------------------");
             $display("FRAME %0d", frame_count);
             $display("---------------------------------\n");
-
-            // 2. Reset
-            rst = 1;
-            increment_frame = 0;
-
-            #100;
-            rst = 0;
-            #100;
+            
+            pause = 1;
 
             // 3. Wait till exit T_RENDERING state
             wait (dut.state == dut.T_IDLE || dut.state == dut.T_RENDERING);
 
-            for (fc_i = 0; fc_i < frame_count; fc_i = fc_i + 1) begin
-                increment_frame = 1;
-                @(posedge clk);
-                @(posedge clk);
-                @(posedge clk);
-                @(posedge clk);
-                increment_frame = 0;
-                @(posedge clk);
-                @(posedge clk);
-                @(posedge clk);
-                @(posedge clk);
-            end
-
-            start = 1;
-            @(posedge clk);
-            @(posedge clk);
-            @(posedge clk);
-            @(posedge clk);
-            start = 0;
-
-            // Name the block so we can target it with disable
-            fork : wait_for_rasterizer
-                begin
-                    // OPTIONAL: Ensure signal is low first to catch a FRESH rising edge
-                    // wait(dut.rasterizer_instance.o_busy == 0); 
-                    
-                    // Wait for it to become busy
-                    wait(dut.rasterizer_instance.o_busy == 1);
-                    $display("Rasterizer Busy Started at time %t", $time);
-                    
-                    // Wait for it to finish
-                    wait(dut.rasterizer_instance.o_busy == 0 && 
-                    dut.rasterizer_fifo_empty == 1 && 
-                    dut.triangle_assembler_instance.o_tri_valid == 0 &&
-                    dut.state == dut.T_IDLE);
-                    $display("Rasterizer Busy Ended at time %t", $time);
-                end
-                begin
-                    // Corrected to match comment (or change comment to 250)
-                    #(5000us); 
-                    $error("TIMEOUT: Rasterizer took too long to finish!");
-                end
-                begin
-                    #(5us);
-                    wait (dut.rasterizer_instance.o_busy == 0 && 
-                          dut.rasterizer_fifo_empty == 1 && 
-                          dut.triangle_assembler_instance.o_tri_valid == 0 &&
-                          dut.state == dut.T_IDLE);
-                    #(5us);
-                    wait (dut.rasterizer_instance.o_busy == 0 && 
-                          dut.rasterizer_fifo_empty == 1 && 
-                          dut.triangle_assembler_instance.o_tri_valid == 0 &&
-                          dut.state == dut.T_IDLE);
-                    #(5us);
-                    wait (dut.rasterizer_instance.o_busy == 0 && 
-                          dut.rasterizer_fifo_empty == 1 && 
-                          dut.triangle_assembler_instance.o_tri_valid == 0 &&
-                          dut.state == dut.T_IDLE);
-                    $display("No triangles to render %t", $time);
-                end
-            join_any
-            
-            // CRITICAL: Kill the thread that didn't finish (the zombie)
-            disable wait_for_rasterizer;
-                
+            $display("TB INFO: Entered RENDERING state at time %t", $time);
+            wait (dut.state == dut.T_POST_IDLE);
+            $display("TB INFO: Exited RENDERING state at time %t", $time);
 
             // Dump Frame Buffer to PPM file
             filename = $sformatf("output_image-%02d.ppm", frame_count);
@@ -344,9 +272,18 @@ module top_level_tb;
             end
 
             $fclose(fd);
-            // $display("Output image written to output_image.ppm");
             $display("Output image written to %s", filename);
-            #100;
+            
+            pause = 0;
+            #500;
+            pause = 1;
+            #500;
+            pause = 0;
+            wait (dut.state == dut.T_FAST_RESET_BUFFERS);
+            $display("TB INFO: Entered FAST_RESET_BUFFERS state at time %t", $time);
+
+
+            
 
         end
 

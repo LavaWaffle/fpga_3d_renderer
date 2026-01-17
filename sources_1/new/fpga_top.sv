@@ -5,11 +5,6 @@ module fpga_top #(
     parameter SKIP_VGA_MODULE = 0
 )(
     input wire clk,
-//    input wire rst_n,
-    
-//    input wire start,
-//    input wire increment_frame,
-//    input wire skip_reset_buffers,
 
     input wire [3:0] btn,
 
@@ -19,7 +14,13 @@ module fpga_top #(
     output logic hdmi_tmds_clk_n,
     output logic hdmi_tmds_clk_p,
     output logic [2:0]hdmi_tmds_data_n,
-    output logic [2:0]hdmi_tmds_data_p
+    output logic [2:0]hdmi_tmds_data_p,
+    
+    //HEX displays
+    output logic [7:0] hex_segA,
+    output logic [3:0] hex_gridA,
+    output logic [7:0] hex_segB,
+    output logic [3:0] hex_gridB
 );
 
     wire [3:0] btn_sync;
@@ -31,19 +32,60 @@ module fpga_top #(
     );
 
     wire rst = btn_sync[0];
-    wire start_rendering_frame = btn_sync[1];
-    wire increment_frame = btn_sync[2];
-    wire skip_reset_buffers = btn_sync[3];
+    wire pause = btn_sync[1];
+    reg prev_pause;
+    reg pause_reg;
+    reg start_rendering_frame; // = btn_sync[1];
+    reg increment_frame; // = btn_sync[2];
+    wire skip_reset_buffers; // = btn_sync[3];
     
+    assign led[11] = pause_reg;
     assign led[12] = rst;
     assign led[13] = start_rendering_frame;
     assign led[14] = increment_frame;
     assign led[15] = skip_reset_buffers;
 
+    wire frame_strobe;
+
+    refresh_strobes #(
+        .CLK_HZ(100_000_000)
+    ) refresh_strobes_inst (
+        .clk(clk),
+        .rst(rst),
+        .strb_60(frame_strobe),
+        .strb_30(),
+        .strb_15()   
+    );
+
+    wire stretch_frame_strobe;
+    strobe_stretcher #(
+        .CLK_HZ(100_000_000),
+        .STRETCH_MS(1)
+    ) strobe_stretcher_instance (
+        .clk(clk),
+        .rst(rst),
+        .strobe_in(frame_strobe),
+        .stretched_out(stretch_frame_strobe)
+    );
+
+    assign led[10] = stretch_frame_strobe;
+
+    wire [5:0] current_frame = gem_engine.mvp_frame_count_i[5:0];
+
+    hex_driver frame_display (
+        .clk(clk),
+        .reset(rst),
+        .in({4'b0, 4'b0, {2'b0, current_frame[5:4]}, current_frame[3:0]}), // Display frame count in hex
+        .hex_seg(hex_segB),
+        .hex_grid(hex_gridB)
+    );
+
     typedef enum {
         T_IDLE,
         T_RENDERING,
-        T_RESETING_BUFFERS
+        T_RESETING_BUFFERS,
+        T_POST_IDLE,
+        T_FAST_RESET_BUFFERS
     } top_state_t;
 
     top_state_t state;
@@ -51,17 +93,36 @@ module fpga_top #(
     reg [16:0] fb_zb_reset_addr;
     reg [3:0] min_rendering_time;
 
+    hex_driver state_display (
+        .clk(clk),
+        .reset(rst),
+        .in({4'b0, 4'b0, 4'b0, state[3:0]}), 
+        .hex_seg(hex_segA),
+        .hex_grid(hex_gridA)
+    );
+
     always_ff @(posedge clk) begin
         led[0] <= 1'b0;
         led[1] <= 1'b0;
+        led[2] <= 1'b0;
+        led[3] <= 1'b0;
+        prev_pause <= pause;
         if (rst) begin
 //            state <= skip_reset_buffers ? T_IDLE : T_RESETING_BUFFERS;
             state <= T_RESETING_BUFFERS;
             render_modules_enabled <= 0;
             fb_zb_reset_addr <= 0;
             min_rendering_time <= 0;
+            pause_reg <= 0;
         end else begin
+            // Latch pause button
+            if (pause && !prev_pause) begin
+                pause_reg <= ~pause_reg;
+            end
+            
+            start_rendering_frame <= 0;
             render_modules_enabled <= 0;
+            increment_frame <= 0;
             case (state)
                 T_RESETING_BUFFERS: begin
                     render_modules_enabled <= 0;
@@ -74,11 +135,20 @@ module fpga_top #(
                 end
                 T_IDLE: begin
                     led[1] <= 1'b1;
-                    if (start_rendering_frame) begin
+                    `ifdef SYNTHESIS
+                    if (stretch_frame_strobe) begin
                         state <= T_RENDERING;
                         render_modules_enabled <= 1;
+                        start_rendering_frame <= 1;
                         min_rendering_time <= 0;
                     end
+                    `else
+                    // In simulation, start rendering immediately for faster testing
+                    state <= T_RENDERING;
+                    render_modules_enabled <= 1;
+                    start_rendering_frame <= 1;
+                    min_rendering_time <= 0;
+                    `endif
                 end
                 T_RENDERING: begin
                     led[0] <= 1'b1;
@@ -93,6 +163,41 @@ module fpga_top #(
                         min_rendering_time == 4'b1111 &&
                         gem_busy == 0
                     ) begin
+                        state <= T_POST_IDLE;
+                    end
+                end
+                T_POST_IDLE: begin
+                    led[3] <= 1'b1;
+                    `ifdef SYNTHESIS
+                    if (stretch_frame_strobe && !pause_reg) begin
+                        state <= T_FAST_RESET_BUFFERS;
+                        render_modules_enabled <= 1;
+                        start_rendering_frame <= 1;
+                        min_rendering_time <= 0;
+                    end
+                    `else
+                    // In simulation, proceed immediately for faster testing
+                    if (!pause_reg) begin
+                        state <= T_FAST_RESET_BUFFERS;
+                        render_modules_enabled <= 1;
+                        start_rendering_frame <= 1;
+                        min_rendering_time <= 0;
+                    end
+                    `endif
+                end
+                // Do the exact render process. We will cut in the writes to the buffers and store 0
+                T_FAST_RESET_BUFFERS: begin
+                    render_modules_enabled <= 1;
+                    if (min_rendering_time != 4'b1111) begin
+                        min_rendering_time <= min_rendering_time + 1;
+                    end
+                    if (rasterizer_busy == 0 && 
+                        rasterizer_fifo_empty == 1 &&
+                        triangle_assembler_data_valid == 0 &&
+                        min_rendering_time == 4'b1111 &&
+                        gem_busy == 0
+                    ) begin
+                        increment_frame <= 1;
                         state <= T_IDLE;
                     end
                 end
@@ -215,9 +320,9 @@ module fpga_top #(
     );
 
     // Frame Buffer Muxing (Reset vs Rasterizer)
-    wire [16:0] fb_addr  = state == T_RESETING_BUFFERS ? fb_zb_reset_addr : rast_fb_addr;
-    wire fb_we           = state == T_RESETING_BUFFERS ? 1 : rast_fb_we;
-    wire [11:0] fb_pixel = state == T_RESETING_BUFFERS ? 12'h000 : rast_fb_pixel;
+    wire [16:0] fb_addr  = (state == T_RESETING_BUFFERS) ? fb_zb_reset_addr : rast_fb_addr;
+    wire fb_we           = ((state == T_RESETING_BUFFERS) || (state == T_FAST_RESET_BUFFERS)) ? 1 : rast_fb_we;
+    wire [11:0] fb_pixel = ((state == T_RESETING_BUFFERS) || (state == T_FAST_RESET_BUFFERS)) ? 12'h000 : rast_fb_pixel;
 
     parameter DEPTH = 76800; // 320x240
 
@@ -252,8 +357,8 @@ module fpga_top #(
     wire [16:0] zb_w_addr = (state == T_RESETING_BUFFERS) ? fb_zb_reset_addr : rast_zb_w_addr;
 
     // 2. Create the Write Data/Enable Mux (Same as before)
-    wire zb_we            = (state == T_RESETING_BUFFERS) ? 1'b1 : rast_zb_we;
-    wire [7:0] zb_w_data  = (state == T_RESETING_BUFFERS) ? 8'hFF : rast_o_zb_i_data;
+    wire zb_we            = (state == T_RESETING_BUFFERS || state == T_FAST_RESET_BUFFERS) ? 1'b1 : rast_zb_we;
+    wire [7:0] zb_w_data  = (state == T_RESETING_BUFFERS || state == T_FAST_RESET_BUFFERS) ? 8'hFF : rast_o_zb_i_data;
 
     // 3. Create the Read Address Mux
     // The reset logic doesn't strictly need to read, but we can tie it to the reset addr.
@@ -315,8 +420,8 @@ module fpga_top #(
     //    If active: perform your flip/scale logic.
     //    If blanking: force address to 0 (Safe).
     assign vga_fb_r_addr = active_read ? 
-                           ((239 - dy_scaled) * 320 + (drawX[9:1])) : 
-                           17'd0;
+                        ((239 - dy_scaled) * 320 + (drawX[9:1])) : 
+                        17'd0;
     //VGA Sync signal generator (for 640x480 @60Hz)
     if (SKIP_VGA_MODULE == 0) begin
         vga_controller vga (
@@ -377,17 +482,4 @@ module fpga_top #(
             $display("HDMI Output is disabled in simulation.");
         end
     `endif
-   
-
-//    always_ff @(posedge clk) begin
-//        // Unary XOR (^) before a vector reduces all its bits to 1 bit.
-//        // We include EVERYTHING: Pixel color, Write Enables, Addresses, and Z-data.
-//        dummy_led <= x0[0] 
-//                     ^ (^rast_fb_pixel)   // Vital: Keeps Interpolator alive
-//                     ^ (^rast_fb_addr)    // Vital: Keeps Address generator alive
-//                     ^ rast_fb_we         
-//                     ^ rast_zb_we 
-//                     ^ (^rast_o_zb_i_data) // Please don't optimize this :pray:
-//                     ; // Vital: Checks ALL bits of Z, not just LSB
-//    end
 endmodule
