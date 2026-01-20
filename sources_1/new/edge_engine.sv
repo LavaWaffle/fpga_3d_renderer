@@ -62,6 +62,8 @@ module edge_engine(
     // =========================================================================
     // Pipeline Register (Latch results on clock edge)
     // =========================================================================
+    reg i_inside_d1, i_valid_d1;
+    reg i_w0_d1, i_w1_d1, i_w2_d1;
     always_ff @(posedge i_clk) begin
         if (i_rst) begin
             o_w0     <= 0;
@@ -71,14 +73,19 @@ module edge_engine(
             o_valid  <= 0;
         end else begin
             // Latch the calculated "next" values
+            i_w0_d1 <= w0_next;
+            i_w1_d1 <= w1_next;
+            i_w2_d1 <= w2_next;
             o_w0     <= w0_next;
             o_w1     <= w1_next;
             o_w2     <= w2_next;
             
             // Qualify the inside check with the valid flag
-            o_inside <= inside_next && i_valid;
-            
+            i_inside_d1 <= inside_next;
+            o_inside <= inside_next;
+
             // Pass the pipeline valid flag
+            i_valid_d1  <= i_valid;
             o_valid  <= i_valid;
         end
     end

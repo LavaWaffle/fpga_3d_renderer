@@ -1,6 +1,8 @@
 `timescale 1ns / 1ps
 
-module rasterizer(
+module rasterizer #(
+    parameter TILE_ID = 1
+)(
     input wire i_clk,
     input wire i_rst,
 
@@ -14,6 +16,12 @@ module rasterizer(
     input wire [7:0]         i_z0, i_z1, i_z2,
     // [TYPE] Q16.16 (Fixed Point) - Texture Coordinates Normalized (0.0 to 1.0)
     input wire [31:0]        i_u0, i_v0, i_u1, i_v1, i_u2, i_v2,
+
+    // // Tile Arbiter <-> Pixel Iterator Interface
+    // output wire o_arbiter_rq_valid,
+    // output wire [2:0] o_arbiter_rq_tile,
+    // input wire  i_arbiter_grant,
+    // output wire o_arbiter_tile_done,
 
     // Frame Buffer
     output wire [16:0] o_fb_addr, // [TYPE] Flat Index (Integer)
@@ -40,6 +48,7 @@ module rasterizer(
     // State Machine
     typedef enum {
         IDLE,
+        CONFINE_BOUNDING_BOX,
         SETUP_MATH,
         SETUP_DIV,
         RASTER_RUN,
@@ -68,6 +77,23 @@ module rasterizer(
         max3 = (a > b) ? ((a > c) ? a : c) : ((b > c) ? b : c);
     endfunction
 
+    function signed [15:0] min2(input signed [15:0] a, b);
+        min2 = (a < b) ? a : b;
+    endfunction
+    function signed [15:0] max2(input signed [15:0] a, b);
+        max2 = (a > b) ? a : b;
+    endfunction
+
+    function signed [15:0] clamp(input signed [15:0] val, min_val, max_val);
+        if (val < min_val) begin
+            clamp = min_val;
+        end else if (val > max_val) begin
+            clamp = max_val;
+        end else begin
+            clamp = val;
+        end
+    endfunction
+
     // =========================================================================
     // 2. Setup Phase Logic
     // =========================================================================
@@ -78,6 +104,16 @@ module rasterizer(
         .i_dividend(div_num), .i_divisor(div_den),
         .o_quotient(div_res), .o_done(div_done)
     );
+
+    logic [15:0] tile_min_x = (TILE_ID == 0 || TILE_ID == 4) ? 0 : // 0 to 79
+                       (TILE_ID == 1 || TILE_ID == 5) ? 80 : // 80 to 159
+                       (TILE_ID == 2 || TILE_ID == 6) ? 160 : // 160 to 239
+                                                       240; // 240 to 319
+    logic [15:0] tile_max_x = tile_min_x + 79;
+
+    logic [15:0] tile_min_y = (TILE_ID < 4) ? 0 : 120; // 0 to 119 or 120 to 239
+    logic [15:0] tile_max_y = tile_min_y + 119;
+
 
     always_ff @(posedge i_clk) begin
         if (i_rst) begin
@@ -109,8 +145,19 @@ module rasterizer(
                         z0_i <= i_z0; z1_i <= i_z1; z2_i <= i_z2;
                         u0_i <= i_u0; v0_i <= i_v0; u1_i <= i_u1; v1_i <= i_v1; u2_i <= i_u2; v2_i <= i_v2;
 
-                        state <= SETUP_MATH;
+                        state <= CONFINE_BOUNDING_BOX;
                     end
+                end
+
+                CONFINE_BOUNDING_BOX: begin
+                    // Further Clamp Bounding Box to Tile Limits (TILE_ID)
+                    min_x <= clamp(min_x, tile_min_x, tile_max_x);
+                    max_x <= clamp(max_x, tile_min_x, tile_max_x);
+                    min_y <= clamp(min_y, tile_min_y, tile_max_y);
+                    max_y <= clamp(max_y, tile_min_y, tile_max_y);
+
+                    // Bounding Box is now clamped and ready
+                    state <= SETUP_MATH;
                 end
 
                 SETUP_MATH: begin
@@ -192,6 +239,13 @@ module rasterizer(
         .i_start(iter_start), .o_done(iter_done),
         .i_min_x(min_x), .i_max_x(max_x),
         .i_min_y(min_y), .i_max_y(max_y),
+
+        // Tile Arbiter <-> Pixel Iterator Interface
+        // .o_arbiter_rq_valid(o_arbiter_rq_valid),
+        // .o_arbiter_rq_tile(o_arbiter_rq_tile),
+        // .i_arbiter_grant(i_arbiter_grant),
+        // .o_arbiter_tile_done(o_arbiter_tile_done),
+
         .o_x(s1_x), .o_y(s1_y), .o_valid(s1_valid),
         .o_zb_addr(s1_zb_addr_gen) // Initiates Read
     );
@@ -244,9 +298,12 @@ module rasterizer(
     // New Chain: s1 -> d1 -> d2 -> d3 -> d4 (Target: Shader)
     // We need 1 extra cycle because of the Texture Read Latency
     
-    reg [16:0] addr_d1, addr_d2, addr_d3, addr_d4, addr_d5, addr_d6;
-    reg [7:0]  zb_data_d1, zb_data_d2, zb_data_d3, zb_data_d4, zb_data_d5;
+    reg [16:0] addr_d1, addr_d2, addr_d3, addr_d4, addr_d5, addr_d6, addr_d7, addr_d8;
+    reg [7:0]  zb_data_d1, zb_data_d2, zb_data_d3, zb_data_d4, zb_data_d5, zb_data_d6, zb_data_d7;
 
+    reg [31:0] s3_p_z_d2; // Extra delay for texture alignment
+    reg        s3_inside_d2, s3_valid_d2;
+    
     always_ff @(posedge i_clk) begin
         // --- 1. Delay Address (Cycle 1 -> Cycle 4) ---
         addr_d1 <= s1_zb_addr_gen;
@@ -255,6 +312,8 @@ module rasterizer(
         addr_d4 <= addr_d3; // <--- To Shader (Matches Texture Data arrival)
         addr_d5 <= addr_d4;
         addr_d6 <= addr_d5;
+        addr_d7 <= addr_d6;
+        addr_d8 <= addr_d7;
 
         // --- 2. Delay Z-Buffer Read Data (Cycle 2 -> Cycle 4) ---
         // Z-Buffer Read Issued at T0. Data Arrives at T1 (available at i_zb_r_data).
@@ -265,13 +324,18 @@ module rasterizer(
         zb_data_d3 <= zb_data_d2;
         zb_data_d4 <= zb_data_d3; 
         zb_data_d5 <= zb_data_d4;
+        zb_data_d6 <= zb_data_d5;
+        zb_data_d7 <= zb_data_d6;
 
         // --- 3. Pipeline Interpolator Outputs (Wait for Texture) ---
         // Interpolator finishes at T2.
         // Texture Data ready at T3.
         s3_p_z_d1    <= s3_p_z;
+        s3_p_z_d2    <= s3_p_z_d1;
         s3_inside_d1 <= s3_inside;
+        s3_inside_d2 <= s3_inside_d1;
         s3_valid_d1  <= s3_valid;
+        s3_valid_d2  <= s3_valid_d1;
     end
 
     // --- Stage 4: Fragment Shader ---
@@ -279,9 +343,9 @@ module rasterizer(
         .i_clk(i_clk), .i_rst(i_rst),
         
         // NEW: Connect delayed signals (from Stage 3.5)
-        .i_p_z(s3_p_z_d1), 
-        .i_inside(s3_inside_d1), 
-        .i_valid(s3_valid_d1),
+        .i_p_z(s3_p_z), 
+        .i_inside(s3_inside), 
+        .i_valid(s3_valid),
         
         // NEW: Texture Input
         .i_tex_pixel(tex_data_out), 

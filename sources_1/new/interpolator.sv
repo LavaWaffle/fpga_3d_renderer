@@ -59,6 +59,9 @@ module interpolator(
     reg signed [31:0] p_v_s3;
     reg i_inside_s3, i_valid_s3;
 
+    reg i_inside_s4, i_inside_s5;
+    reg i_valid_s4, i_valid_s5;
+
     // Reset Gated Pipeline
     always_ff @(posedge i_clk) begin
         if (i_rst) begin
@@ -75,6 +78,12 @@ module interpolator(
 
             i_inside_s3 <= i_inside_s2;
             i_valid_s3 <= i_valid_s2;
+
+            i_inside_s4 <= i_inside_s3;
+            i_inside_s5 <= i_inside_s4;
+
+            i_valid_s4 <= i_valid_s3;
+            i_valid_s5 <= i_valid_s4;
 
             o_inside <= i_inside_s3;
             o_valid  <= i_valid_s3;

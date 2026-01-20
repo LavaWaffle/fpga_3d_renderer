@@ -331,99 +331,175 @@ module fpga_top #(
     wire [7:0]  rast_o_zb_i_data;
     wire [7:0]  rast_i_zb_o_data;
 
-    rasterizer rasterizer_instance (
-        .i_clk(clk),
-        .i_rst(rst),
-        
-        // Assembler Interface
+    wire rasterizer_arbiter_rq_valid;
+    wire [2:0] rasterizer_rq_tile;
+    wire arbiter_request_grant;
+    wire rasterizer_tile_done;
+
+    wire [16:0] rast_o_fb_i_fb_addr [8];
+    wire        rast_o_fb_i_fb_we   [8];
+    wire [11:0] rast_o_fb_i_fb_data [8];
+
+    wire [16:0] rast_o_zb_i_zb_r_addr [8];
+    wire [7:0]  rast_i_zb_o_zb_r_data [8];
+    wire [16:0] rast_o_zb_i_zb_w_addr [8];
+    wire        rast_o_zb_i_zb_w_we   [8];
+    wire [7:0]  rast_o_zb_i_zb_w_data [8];
+
+    tiled_rasterizer tiled_rasterizer_instance (
+        .i_clk(clk), .i_rst(rst),
+        // Triangle Assembler Interface
         .i_tri_valid(triangle_assembler_data_valid),
         .o_busy(rasterizer_busy),
         
-        // Triangle Inputs
-        .i_x0(x0), .i_y0(y0), .i_z0(z0),
-        .i_x1(x1), .i_y1(y1), .i_z1(z1),
-        .i_x2(x2), .i_y2(y2), .i_z2(z2),
-        
+        .i_x0(x0), .i_y0(y0),
+        .i_x1(x1), .i_y1(y1),
+        .i_x2(x2), .i_y2(y2),
+        .i_z0(z0), .i_z1(z1), .i_z2(z2),
         .i_u0(u0), .i_v0(v0),
         .i_u1(u1), .i_v1(v1),
         .i_u2(u2), .i_v2(v2),
 
-        // Framebuffer Interface
-        .o_fb_addr(rast_fb_addr),
-        .o_fb_we(rast_fb_we),
-        .o_fb_pixel(rast_fb_pixel),
-        
-        // Z-Buffer Interface
-        .o_zb_r_addr(rast_zb_r_addr),
-        .i_zb_r_data(rast_i_zb_o_data),
-        .o_zb_w_addr(rast_zb_w_addr),
-        .o_zb_w_we(rast_zb_we),
-        .o_zb_w_data(rast_o_zb_i_data)
+        .o_fb_addr(rast_o_fb_i_fb_addr),
+        .o_fb_we(rast_o_fb_i_fb_we),
+        .o_fb_pixel(rast_o_fb_i_fb_data),
+
+        .o_zb_r_addr(rast_o_zb_i_zb_r_addr),
+        .i_zb_r_data(rast_i_zb_o_zb_r_data),
+        .o_zb_w_addr(rast_o_zb_i_zb_w_addr),
+        .o_zb_w_we(rast_o_zb_i_zb_w_we),
+        .o_zb_w_data(rast_o_zb_i_zb_w_data)
     );
 
+    // rasterizer rasterizer_instance (
+    //     .i_clk(clk),
+    //     .i_rst(rst),
+        
+    //     // Assembler Interface
+    //     .i_tri_valid(triangle_assembler_data_valid),
+    //     .o_busy(rasterizer_busy),
+        
+    //     // Triangle Inputs
+    //     .i_x0(x0), .i_y0(y0), .i_z0(z0),
+    //     .i_x1(x1), .i_y1(y1), .i_z1(z1),
+    //     .i_x2(x2), .i_y2(y2), .i_z2(z2),
+        
+    //     .i_u0(u0), .i_v0(v0),
+    //     .i_u1(u1), .i_v1(v1),
+    //     .i_u2(u2), .i_v2(v2),
+
+    //     // // Tile Arbiter Interface
+    //     // .o_arbiter_rq_valid(rasterizer_arbiter_rq_valid),
+    //     // .o_arbiter_rq_tile(rasterizer_rq_tile),
+    //     // .i_arbiter_grant(arbiter_request_grant),
+    //     // .o_arbiter_tile_done(rasterizer_tile_done),
+
+    //     // Framebuffer Interface
+    //     .o_fb_addr(rast_fb_addr),
+    //     .o_fb_we(rast_fb_we),
+    //     .o_fb_pixel(rast_fb_pixel),
+        
+    //     // Z-Buffer Interface
+    //     .o_zb_r_addr(rast_zb_r_addr),
+    //     .i_zb_r_data(tile_i_zb_o_zb_r_data[1]), // TILE_ID = 1
+    //     .o_zb_w_addr(rast_zb_w_addr),
+    //     .o_zb_w_we(rast_zb_we),
+    //     .o_zb_w_data(rast_o_zb_i_data)
+    // );
+
+    // wire [16:0] tile_o_fb_i_fb_addr [8];
+    // wire        tile_o_fb_i_fb_we   [8];
+    // wire [11:0] tile_o_fb_i_fb_data [8];
+    // wire [16:0] tile_o_zb_i_zb_r_addr [8];
+    // wire [7:0]  tile_i_zb_o_zb_r_data [8];
+    // wire [16:0] tile_o_zb_i_zb_w_addr [8];
+    // wire        tile_o_zb_i_zb_w_we   [8];
+    // wire [7:0]  tile_o_zb_i_zb_w_data [8];
+    // wire        tile_o_rasterizer_res [1];
+    // tile_arbiter #(
+    //     .NUM_RASTERIZERS(1),
+    //     .ADDR_WIDTH(17),
+    //     .COLOR_DATA_WIDTH(12),
+    //     .Z_DATA_WIDTH(8)
+    // ) tile_arbiter_instance (
+    //     .i_clk(clk), .i_rst(rst),
+
+    //     .rasterizer_rq_valid('{rasterizer_arbiter_rq_valid}),
+    //     .rasterizer_rq('{rasterizer_rq_tile}),
+    //     .rasterizer_done('{rasterizer_tile_done}),
+
+    //     .i_rasterizer_fb_addr('{rast_fb_addr}),
+    //     .i_rasterizer_fb_we('{rast_fb_we}),
+    //     .i_rasterizer_fb_data('{rast_fb_pixel}),
+
+    //     .i_rasterizer_zb_r_addr('{rast_zb_r_addr}),
+    //     .o_rasterizer_zb_r_data('{rast_i_zb_o_data}),
+    //     .i_rasterizer_zb_w_addr('{rast_zb_w_addr}),
+    //     .i_rasterizer_zb_w_we('{rast_zb_we}),
+    //     .i_rasterizer_zb_w_data('{rast_o_zb_i_data}),
+
+    //     .o_tile_fb_addr(tile_o_fb_i_fb_addr),
+    //     .o_tile_fb_we(tile_o_fb_i_fb_we),
+    //     .o_tile_fb_data(tile_o_fb_i_fb_data),
+    //     .o_tile_zb_r_addr(tile_o_zb_i_zb_r_addr),
+    //     .i_tile_zb_r_data(tile_i_zb_o_zb_r_data),
+    //     .o_tile_zb_w_addr(tile_o_zb_i_zb_w_addr),
+    //     .o_tile_zb_w_we(tile_o_zb_i_zb_w_we),
+    //     .o_tile_zb_w_data(tile_o_zb_i_zb_w_data),
+    //     .o_rasterizer_res('{arbiter_request_grant})
+    // );
+
     // Frame Buffer Muxing (Reset vs Rasterizer)
-    wire [16:0] fb_addr  = (top_state == T_INIT_RST_BUFFERS) ? fb_zb_reset_addr : rast_fb_addr;
-    wire fb_we           = ((top_state == T_INIT_RST_BUFFERS) || (top_state == T_CLR_BUFFERS)) ? 1 : rast_fb_we;
-    wire [11:0] fb_pixel = ((top_state == T_INIT_RST_BUFFERS) || (top_state == T_CLR_BUFFERS)) ? 12'h000 : rast_fb_pixel;
+    wire [16:0] fb_addr  [8] = (top_state == T_INIT_RST_BUFFERS) 
+        ? '{default: fb_zb_reset_addr}
+        : rast_o_fb_i_fb_addr;
+    wire fb_we           [8] = ((top_state == T_INIT_RST_BUFFERS) || (top_state == T_CLR_BUFFERS)) 
+        ? '{default: 1} 
+        : rast_o_fb_i_fb_we;
+    wire [11:0] fb_pixel [8] = ((top_state == T_INIT_RST_BUFFERS) || (top_state == T_CLR_BUFFERS)) 
+        ? '{default: 12'h000} 
+        : rast_o_fb_i_fb_data;
 
     parameter DEPTH = 76800; // 320x240
 
     wire [16:0] vga_fb_r_addr;
     wire [11:0] vga_fb_pixel;
 
-    // Framebuffer BRAM (Simple Dual-Port RAM)
-    // 320x240 = 76,800 pixels (17 bits)
-    simple_dual_clk_bram #(
-        .DATA_WIDTH(12),
-        .ADDR_WIDTH(17),
-        .DEPTH(DEPTH),
-        .INIT_FILE("frame_buffer_init.mem")
-    ) frame_buffer (
-        .clka(clk),
-        .we(fb_we),
-        .waddr(fb_addr),
-        .din(fb_pixel),
+    tiled_frame_buffer tiled_frame_buffer_instance (
+        .i_clk(clk), .i_clk_vga(clk_25MHz),
+
+        .i_tile_fb_addr(fb_addr),
+        .i_tile_fb_we(fb_we),
+        .i_tile_fb_data(fb_pixel),
         
-        .clkb(clk_25MHz),
-        .raddr(vga_fb_r_addr), 
-        .dout(vga_fb_pixel)
+        .i_vga_x(active_read ? drawX[9:1] : 9'd0), // Scale X for VGA
+        .i_vga_y(active_read ? (239 - drawY[9:1]) : 9'd0), // Flip Y for VGA
+        .o_vga_pixel(vga_fb_pixel)
     );
 
-    // ---------------------------------------------------------
-    // Z-BUFFER WIRING
-    // ---------------------------------------------------------
+    wire [16:0] zb_w_addr [8] = (top_state == T_INIT_RST_BUFFERS) 
+        ? '{default: fb_zb_reset_addr}
+        : rast_o_zb_i_zb_w_addr;
+    wire zb_we            [8] = (top_state == T_INIT_RST_BUFFERS || top_state == T_CLR_BUFFERS) 
+        ? '{default: 1} 
+        : rast_o_zb_i_zb_w_we;
+    wire [7:0] zb_w_data  [8] = (top_state == T_INIT_RST_BUFFERS || top_state == T_CLR_BUFFERS) 
+        ? '{default: 8'hFF} 
+        : rast_o_zb_i_zb_w_data;
 
-    // 1. Create the Write Address Mux
-    // If resetting: use the reset counter.
-    // If rendering: use the Rasterizer's WRITE address (where it wants to save the new Z).
-    wire [16:0] zb_w_addr = (top_state == T_INIT_RST_BUFFERS) ? fb_zb_reset_addr : rast_zb_w_addr;
+    wire [16:0] zb_r_addr [8] = (top_state == T_INIT_RST_BUFFERS) 
+        ? '{default: fb_zb_reset_addr}
+        : rast_o_zb_i_zb_r_addr;
 
-    // 2. Create the Write Data/Enable Mux (Same as before)
-    wire zb_we            = (top_state == T_INIT_RST_BUFFERS || top_state == T_CLR_BUFFERS) ? 1'b1 : rast_zb_we;
-    wire [7:0] zb_w_data  = (top_state == T_INIT_RST_BUFFERS || top_state == T_CLR_BUFFERS) ? 8'hFF : rast_o_zb_i_data;
+    tiled_z_buffer tiled_z_buffer_instance (
+        .i_clk(clk),
 
-    // 3. Create the Read Address Mux
-    // The reset logic doesn't strictly need to read, but we can tie it to the reset addr.
-    // The Rasterizer needs to read to check depth (rast_zb_r_addr).
-    wire [16:0] zb_r_addr = (top_state == T_INIT_RST_BUFFERS) ? fb_zb_reset_addr : rast_zb_r_addr;
+        .i_zb_r_addr(zb_r_addr),
+        .o_zb_r_data(rast_i_zb_o_zb_r_data),
 
-    // 4. Instantiate the Dual Port RAM
-    simple_dual_port_bram #(
-        .DATA_WIDTH(8),
-        .ADDR_WIDTH(17),
-        .DEPTH(76800),
-        .INIT_FILE("z_buffer_init.mem") // The file generated by the python script
-    ) z_buffer (
-        .clk(clk),
-        
-        // Write Port
-        .we(zb_we),
-        .waddr(zb_w_addr),
-        .din(zb_w_data),
-        
-        // Read Port
-        .raddr(zb_r_addr),
-        .dout(rast_i_zb_o_data) // Data going back into Rasterizer for checking
+        .i_zb_w_addr(zb_w_addr),
+        .i_zb_w_we(zb_we),
+        .i_zb_w_data(zb_w_data)
     );
 
     wire clk_25MHz, clk_125MHz;
