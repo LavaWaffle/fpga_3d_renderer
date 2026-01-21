@@ -24,14 +24,14 @@ module rasterizer #(
     // output wire o_arbiter_tile_done,
 
     // Frame Buffer
-    output wire [16:0] o_fb_addr, // [TYPE] Flat Index (Integer)
+    output wire [15:0] o_fb_addr, // [TYPE] Flat Index (Integer)
     output wire        o_fb_we,
     output wire [11:0] o_fb_pixel, // [TYPE] RGB444 Color
     
     // Z-Buffer
-    output wire [16:0] o_zb_r_addr, // [TYPE] Flat Index (Integer)
+    output wire [15:0] o_zb_r_addr, // [TYPE] Flat Index (Integer)
     input  wire [7:0]  i_zb_r_data, // [TYPE] U8.0 Depth
-    output wire [16:0] o_zb_w_addr, // [TYPE] Flat Index (Integer)
+    output wire [15:0] o_zb_w_addr, // [TYPE] Flat Index (Integer)
     output wire        o_zb_w_we,
     output wire [7:0]  o_zb_w_data  // [TYPE] U8.0 Depth
 );
@@ -67,7 +67,7 @@ module rasterizer #(
     // Pipeline Control
     reg iter_start;
     wire iter_done;
-    reg [2:0] flush_count; // Wait for pipeline to empty
+    reg [4:0] flush_count; // Wait for pipeline to empty
 
     // Helper Functions
     function signed [15:0] min3(input signed [15:0] a, b, c);
@@ -151,10 +151,10 @@ module rasterizer #(
 
                 CONFINE_BOUNDING_BOX: begin
                     // Further Clamp Bounding Box to Tile Limits (TILE_ID)
-                    min_x <= clamp(min_x, tile_min_x, tile_max_x);
-                    max_x <= clamp(max_x, tile_min_x, tile_max_x);
-                    min_y <= clamp(min_y, tile_min_y, tile_max_y);
-                    max_y <= clamp(max_y, tile_min_y, tile_max_y);
+                    // min_x <= clamp(min_x, tile_min_x, tile_max_x);
+                    // max_x <= clamp(max_x, tile_min_x, tile_max_x);
+                    // min_y <= clamp(min_y, tile_min_y, tile_max_y);
+                    // max_y <= clamp(max_y, tile_min_y, tile_max_y);
 
                     // Bounding Box is now clamped and ready
                     state <= SETUP_MATH;
@@ -182,7 +182,7 @@ module rasterizer #(
                 RASTER_RUN: begin
                     // Wait for the Iterator to say "I have generated the last pixel"
                     if (iter_done) begin
-                        flush_count <= 5; // Increased flush count due to deeper pipeline
+                        flush_count <= 15; // Increased flush count due to deeper pipeline
                         state <= RASTER_FLUSH;
                     end
                 end
@@ -206,7 +206,7 @@ module rasterizer #(
     // --- Stage 1 -> Stage 2 Wires ---
     wire signed [15:0] s1_x, s1_y; // [TYPE] S16.0 (Current Pixel Coord)
     wire s1_valid;
-    wire [16:0] s1_zb_addr_gen;    // [TYPE] Integer Index
+    wire [15:0] s1_zb_addr_gen;    // [TYPE] Integer Index
 
     // --- Stage 2 -> Stage 3 Wires ---
     // [TYPE] S32.0 (Signed Integer) - Barycentric Weights
@@ -234,7 +234,9 @@ module rasterizer #(
     // =========================================================================
 
     // --- Stage 1: Iterator ---
-    pixel_iterator stage1_iter (
+    pixel_iterator #(
+        .TILE_ID(TILE_ID)
+    ) stage1_iter (
         .i_clk(i_clk), .i_rst(i_rst),
         .i_start(iter_start), .o_done(iter_done),
         .i_min_x(min_x), .i_max_x(max_x),
@@ -298,7 +300,7 @@ module rasterizer #(
     // New Chain: s1 -> d1 -> d2 -> d3 -> d4 (Target: Shader)
     // We need 1 extra cycle because of the Texture Read Latency
     
-    reg [16:0] addr_d1, addr_d2, addr_d3, addr_d4, addr_d5, addr_d6, addr_d7, addr_d8;
+    reg [15:0] addr_d1, addr_d2, addr_d3, addr_d4, addr_d5, addr_d6, addr_d7, addr_d8;
     reg [7:0]  zb_data_d1, zb_data_d2, zb_data_d3, zb_data_d4, zb_data_d5, zb_data_d6, zb_data_d7;
 
     reg [31:0] s3_p_z_d2; // Extra delay for texture alignment

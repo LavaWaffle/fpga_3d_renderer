@@ -336,15 +336,15 @@ module fpga_top #(
     wire arbiter_request_grant;
     wire rasterizer_tile_done;
 
-    wire [16:0] rast_o_fb_i_fb_addr [8];
-    wire        rast_o_fb_i_fb_we   [8];
-    wire [11:0] rast_o_fb_i_fb_data [8];
+    wire [15:0] rast_o_fb_i_fb_addr [2];
+    wire        rast_o_fb_i_fb_we   [2];
+    wire [11:0] rast_o_fb_i_fb_data [2];
 
-    wire [16:0] rast_o_zb_i_zb_r_addr [8];
-    wire [7:0]  rast_i_zb_o_zb_r_data [8];
-    wire [16:0] rast_o_zb_i_zb_w_addr [8];
-    wire        rast_o_zb_i_zb_w_we   [8];
-    wire [7:0]  rast_o_zb_i_zb_w_data [8];
+    wire [15:0] rast_o_zb_i_zb_r_addr [2];
+    wire [7:0]  rast_i_zb_o_zb_r_data [2];
+    wire [15:0] rast_o_zb_i_zb_w_addr [2];
+    wire        rast_o_zb_i_zb_w_we   [2];
+    wire [7:0]  rast_o_zb_i_zb_w_data [2];
 
     tiled_rasterizer tiled_rasterizer_instance (
         .i_clk(clk), .i_rst(rst),
@@ -407,14 +407,14 @@ module fpga_top #(
     //     .o_zb_w_data(rast_o_zb_i_data)
     // );
 
-    // wire [16:0] tile_o_fb_i_fb_addr [8];
-    // wire        tile_o_fb_i_fb_we   [8];
-    // wire [11:0] tile_o_fb_i_fb_data [8];
-    // wire [16:0] tile_o_zb_i_zb_r_addr [8];
-    // wire [7:0]  tile_i_zb_o_zb_r_data [8];
-    // wire [16:0] tile_o_zb_i_zb_w_addr [8];
-    // wire        tile_o_zb_i_zb_w_we   [8];
-    // wire [7:0]  tile_o_zb_i_zb_w_data [8];
+    // wire [16:0] tile_o_fb_i_fb_addr [2];
+    // wire        tile_o_fb_i_fb_we   [2];
+    // wire [11:0] tile_o_fb_i_fb_data [2];
+    // wire [16:0] tile_o_zb_i_zb_r_addr [2];
+    // wire [7:0]  tile_i_zb_o_zb_r_data [2];
+    // wire [16:0] tile_o_zb_i_zb_w_addr [2];
+    // wire        tile_o_zb_i_zb_w_we   [2];
+    // wire [7:0]  tile_o_zb_i_zb_w_data [2];
     // wire        tile_o_rasterizer_res [1];
     // tile_arbiter #(
     //     .NUM_RASTERIZERS(1),
@@ -450,13 +450,13 @@ module fpga_top #(
     // );
 
     // Frame Buffer Muxing (Reset vs Rasterizer)
-    wire [16:0] fb_addr  [8] = (top_state == T_INIT_RST_BUFFERS) 
+    wire [15:0] fb_addr  [2] = (top_state == T_INIT_RST_BUFFERS) 
         ? '{default: fb_zb_reset_addr}
         : rast_o_fb_i_fb_addr;
-    wire fb_we           [8] = ((top_state == T_INIT_RST_BUFFERS) || (top_state == T_CLR_BUFFERS)) 
+    wire fb_we           [2] = ((top_state == T_INIT_RST_BUFFERS) || (top_state == T_CLR_BUFFERS)) 
         ? '{default: 1} 
         : rast_o_fb_i_fb_we;
-    wire [11:0] fb_pixel [8] = ((top_state == T_INIT_RST_BUFFERS) || (top_state == T_CLR_BUFFERS)) 
+    wire [11:0] fb_pixel [2] = ((top_state == T_INIT_RST_BUFFERS) || (top_state == T_CLR_BUFFERS)) 
         ? '{default: 12'h000} 
         : rast_o_fb_i_fb_data;
 
@@ -472,22 +472,21 @@ module fpga_top #(
         .i_tile_fb_we(fb_we),
         .i_tile_fb_data(fb_pixel),
         
-        .i_vga_x(active_read ? drawX[9:1] : 9'd0), // Scale X for VGA
-        .i_vga_y(active_read ? (239 - drawY[9:1]) : 9'd0), // Flip Y for VGA
+        .i_vga_addr(vga_fb_r_addr),
         .o_vga_pixel(vga_fb_pixel)
     );
 
-    wire [16:0] zb_w_addr [8] = (top_state == T_INIT_RST_BUFFERS) 
+    wire [15:0] zb_w_addr [2] = (top_state == T_INIT_RST_BUFFERS) 
         ? '{default: fb_zb_reset_addr}
         : rast_o_zb_i_zb_w_addr;
-    wire zb_we            [8] = (top_state == T_INIT_RST_BUFFERS || top_state == T_CLR_BUFFERS) 
+    wire zb_we            [2] = (top_state == T_INIT_RST_BUFFERS || top_state == T_CLR_BUFFERS) 
         ? '{default: 1} 
         : rast_o_zb_i_zb_w_we;
-    wire [7:0] zb_w_data  [8] = (top_state == T_INIT_RST_BUFFERS || top_state == T_CLR_BUFFERS) 
+    wire [7:0] zb_w_data  [2] = (top_state == T_INIT_RST_BUFFERS || top_state == T_CLR_BUFFERS) 
         ? '{default: 8'hFF} 
         : rast_o_zb_i_zb_w_data;
 
-    wire [16:0] zb_r_addr [8] = (top_state == T_INIT_RST_BUFFERS) 
+    wire [15:0] zb_r_addr [2] = (top_state == T_INIT_RST_BUFFERS) 
         ? '{default: fb_zb_reset_addr}
         : rast_o_zb_i_zb_r_addr;
 

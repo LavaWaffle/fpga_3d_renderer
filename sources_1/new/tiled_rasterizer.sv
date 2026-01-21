@@ -17,18 +17,18 @@ module tiled_rasterizer(
     input wire [31:0] i_u0, i_v0, i_u1, i_v1, i_u2, i_v2,
 
     // Frame Buffer Interface
-    output wire [16:0] o_fb_addr[8],
-    output wire o_fb_we[8],
-    output wire [11:0] o_fb_pixel[8],
+    output wire [15:0] o_fb_addr[2],
+    output wire o_fb_we[2],
+    output wire [11:0] o_fb_pixel[2],
 
     // Z Buffer Interface
-    output wire [16:0] o_zb_r_addr[8],
-    input  wire [7:0] i_zb_r_data[8],
-    output wire [16:0] o_zb_w_addr[8],
-    output wire o_zb_w_we[8],
-    output wire [7:0] o_zb_w_data[8]
+    output wire [15:0] o_zb_r_addr[2],
+    input  wire [7:0] i_zb_r_data[2],
+    output wire [15:0] o_zb_w_addr[2],
+    output wire o_zb_w_we[2],
+    output wire [7:0] o_zb_w_data[2]
 );
-    wire [7:0] rast_t_busy;
+    wire [1:0] rast_t_busy;
     assign o_busy = |rast_t_busy; // Wait until all tiles are free
 
     reg i_tri_valid_prev, i_tri_valid_int;
@@ -46,8 +46,8 @@ module tiled_rasterizer(
 
     genvar t;
     generate
-        for (t = 0; t < 8; t = t + 1) begin : rast_tile_gen
-            // if (t != 2 && t != 1) begin : skip_tiles
+        for (t = 0; t < 2; t = t + 1) begin : rast_tile_gen
+            // if (t != 1) begin : skip_tiles
             //     assign o_fb_addr[t]    = 17'd0;
             //     assign o_fb_we[t]      = 1'b0;
             //     assign o_fb_pixel[t]   = 12'd0;

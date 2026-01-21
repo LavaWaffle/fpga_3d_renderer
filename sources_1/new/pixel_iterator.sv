@@ -1,8 +1,7 @@
 `timescale 1ns / 1ps
 
 module pixel_iterator #(
-    parameter int TILE_WIDTH = 80, // Parameterized for clarity
-    parameter int TILE_HEIGHT = 120
+    parameter int TILE_ID = 0 // 0 to 1, 0 = Evens, 1 = Odds
 )(
     input wire i_clk,
     input wire i_rst,
@@ -19,7 +18,7 @@ module pixel_iterator #(
     output reg signed [15:0] o_x,
     output reg signed [15:0] o_y,
     output reg o_valid,             
-    output reg [16:0] o_zb_addr     
+    output reg [15:0] o_zb_addr     
 );
 
     typedef enum {
@@ -49,13 +48,13 @@ module pixel_iterator #(
         move_success = 0;
 
         if (state == PIXEL_ITE_RUN) begin
-            if (r_x < r_max_x) begin
+            if ((r_x + 2) <= r_max_x) begin
                 // Move Right
-                next_x = r_x + 1;
+                next_x = r_x + 2;
                 move_success = 1;
             end else if (r_y < r_max_y) begin
                 // Move Down, Reset X
-                next_x = r_min_x;
+                next_x = (r_min_x[0] == TILE_ID) ? r_min_x : r_min_x + 1;
                 next_y = r_y + 1;
                 move_success = 1;
             end else begin
@@ -65,24 +64,11 @@ module pixel_iterator #(
         end
     end
 
-    // --- 2. Address Calculator (Based on NEXT coords) ---
-    logic [6:0] next_local_x; 
-    logic [6:0] next_local_y; 
     logic [16:0] next_addr;
-
     always_comb begin
-        // Logic to determine Local X from Global Next X
-        if (next_x < TILE_WIDTH)            next_local_x = next_x[6:0];
-        else if (next_x < TILE_WIDTH*2)     next_local_x = next_x - TILE_WIDTH;
-        else if (next_x < TILE_WIDTH*3)     next_local_x = next_x - (TILE_WIDTH*2);
-        else                                next_local_x = next_x - (TILE_WIDTH*3);
-
-        // Logic to determine Local Y from Global Next Y
-        if (next_y < TILE_HEIGHT)           next_local_y = next_y[6:0];
-        else                                next_local_y = next_y - TILE_HEIGHT;
-
-        // Calculate the address for the cycle we are ABOUT to enter
-        next_addr = (next_local_y * TILE_WIDTH) + next_local_x;
+        // (y * (SCREEN_WIDTH/2)) + (x/2)
+        // 320/2 = 160.
+        next_addr = ($unsigned(next_y) * 160) + ($unsigned(next_x) >> 1);
     end
 
     // --- 3. Sequential FSM ---
@@ -109,39 +95,21 @@ module pixel_iterator #(
                         r_max_x <= i_max_x;
                         r_max_y <= i_max_y;
 
-                        // CRITICAL FIX: PRE-LOAD the first pixel
-                        // We set r_x to min_x, so the 'next' logic in the first
-                        // RUN cycle sees (min+1). But we must output min FIRST.
-                        // To solve this cleanly: We output the FIRST pixel here,
-                        // or we set r_x to (min_x - 1) so the next logic hits min_x.
-                        
-                        // Approach A: Output First Pixel Here (0 latency start)
-                        r_x         <= i_min_x;
+                        // Set r_x to the starting point, but SUBTRACT 2
+                        // so that the first 'next_x' calculation in RUN hits the actual start.
+                        if ((i_min_x[0]) != TILE_ID) begin
+                            r_x <= i_min_x + 1 - 2; 
+                        end else begin
+                            r_x <= i_min_x - 2;
+                        end
                         r_y         <= i_min_y;
                         
-                        // Manually calc address for the first pixel
-                        // (Reuse the logic instantiation or duplicate small math here)
-                        // For safety/clarity in this snippet, I will output the *first*
-                        // valid pixel in the first cycle of RUN by handling r_x differently below.
-                        
                         state       <= PIXEL_ITE_RUN;
-                        
-                        // Initialize outputs to the first pixel immediately
-                        o_x         <= i_min_x;
-                        o_y         <= i_min_y;
-                        
-                        // Calc logic for very first pixel (assuming tile 0 for simplicity, 
-                        // but strictly should run through the calc block)
-                        // Ideally: call a function. For now, rely on next cycle logic 
-                        // or accept 1 cycle bubbles.
-                        
-                        // Let's use the 'Move Success' strategy in RUN:
+                        o_valid     <= 0;
                     end
                 end
 
                 PIXEL_ITE_RUN: begin
-                    // FIX: This structure assumes r_x holds the LAST output.
-                    // We calculate NEXT. Output NEXT. Update r_x to NEXT.
                     
                     if (move_success) begin
                         r_x         <= next_x;
@@ -152,8 +120,6 @@ module pixel_iterator #(
                         o_zb_addr   <= next_addr; // Uses the clean logic
                         o_valid     <= 1;
                     end else if (last_pixel) begin
-                        // We need to stop, but was the current r_x/r_y valid?
-                        // If we are here, we processed the max_x/max_y already.
                         state       <= PIXEL_ITE_DONE;
                     end
                 end
